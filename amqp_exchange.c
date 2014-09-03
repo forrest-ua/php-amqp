@@ -88,6 +88,7 @@ HashTable *amqp_exchange_object_get_debug_info(zval *object, int *is_temp TSRMLS
 	ZVAL_LONG(value, exchange->auto_delete);
 	zend_hash_add(debug_info, "auto_delete", sizeof("auto_delete"), &value, sizeof(zval *), NULL);
 
+	Z_ADDREF_P(exchange->arguments);
 	zend_hash_add(debug_info, "arguments", sizeof("arguments"), &exchange->arguments, sizeof(&exchange->arguments), NULL);
 
 	/* Start adding values */
