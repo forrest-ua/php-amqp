@@ -551,8 +551,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 	long flags = 0;
 
 	amqp_rpc_reply_t res;
-	amqp_exchange_delete_t s;
-	amqp_method_number_t method_ok = AMQP_EXCHANGE_DELETE_OK_METHOD;
+	amqp_exchange_delete_ok_t *r;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|sl", &id, amqp_exchange_class_entry, &name, &name_len, &flags) == FAILURE) {
 		return;
@@ -560,33 +559,20 @@ PHP_METHOD(amqp_exchange_class, delete)
 
 	exchange = (amqp_exchange_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	if (name_len) {
-		AMQP_SET_NAME(exchange, name);
-		s.ticket = 0;
-		s.exchange.len = name_len;
-		s.exchange.bytes = name;
-		s.if_unused = (AMQP_IFUNUSED & flags) ? 1 : 0;
-		s.nowait = 0;
-	} else {
-		s.ticket = 0;
-		s.exchange.len = exchange->name_len;
-		s.exchange.bytes = exchange->name;
-		s.if_unused = (AMQP_IFUNUSED & flags) ? 1 : 0;
-		s.nowait = 0;
-	}
-
 	channel = AMQP_GET_CHANNEL(exchange);
 	AMQP_VERIFY_CHANNEL(channel, "Could not delete exchange.");
 
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not delete exchange.");
 
-	res = amqp_simple_rpc(
+ 	r = amqp_exchange_delete(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_EXCHANGE_DELETE_METHOD,
-		&method_ok, &s
+		amqp_cstring_bytes(name_len ? name : exchange->name),
+		(AMQP_IFUNUSED & flags) ? 1 : 0
 	);
+
+	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -597,7 +583,6 @@ PHP_METHOD(amqp_exchange_class, delete)
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }

@@ -40,8 +40,9 @@ function consumeThings($message, $queue) {
 	if ($count >= 2) {
 		global $ex;
 		global $q;
-		$ex->delete();
-		$q->delete();
+
+        $ex->delete();
+        $q->delete();
 		return false;
 	}
 	return true;
@@ -49,6 +50,7 @@ function consumeThings($message, $queue) {
 
 // Read from the queue
 $q->consume("consumeThings");
+
 
 ?>
 --EXPECT--
