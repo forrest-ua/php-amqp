@@ -1,11 +1,12 @@
 language: php
 
 php:
-  - 5.2
-  - 5.3
-  - 5.4
+#  - hhvm
+#  - 5.2
+#  - 5.3
+#  - 5.4
   - 5.5
-  - 5.6
+#  - 5.6
 
 services:
   - rabbitmq
@@ -14,9 +15,11 @@ install:
   - sudo apt-get -qq install valgrind
 env:
   - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=master
-  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.5.0
-  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.4.1
-  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.4.0
+#  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.5.2
+#  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.5.1
+#  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.5.0
+#  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.4.1
+#  - NO_INTERACTION=1 TEST_TIMEOUT=120 TEST_PHP_ARGS=-m LIBRABBITMQ_VERSION=v0.4.0
 
 before_script:
   - sh -c "git clone git://github.com/alanxz/rabbitmq-c.git"
@@ -29,6 +32,7 @@ script:
   - sh -c "make test | tee result.txt"
   - sh test-report.sh
 
-notifications:
-  email:
-    - lstrojny@php.net
+#notifications:
+#  email:
+#    - lstrojny@php.net
+
