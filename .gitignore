@@ -38,5 +38,6 @@ tests/*.log
 tests/*.out
 tests/*.php
 tests/*.sh
+tests/*.mem
 php_test_results_*
 tmp-php.ini
