@@ -795,7 +795,7 @@ PHP_METHOD(amqp_queue_class, bind)
 
 	amqp_rpc_reply_t res;
 	amqp_queue_bind_t s;
-	amqp_method_number_t bind_ok = AMQP_QUEUE_BIND_OK_METHOD;
+	amqp_method_number_t bind_ok[] = { AMQP_QUEUE_BIND_OK_METHOD, };
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
 		return;
@@ -834,7 +834,7 @@ PHP_METHOD(amqp_queue_class, bind)
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		AMQP_QUEUE_BIND_METHOD,
-		&bind_ok,
+		bind_ok,
 		&s
 	);
 
@@ -1203,7 +1203,7 @@ PHP_METHOD(amqp_queue_class, purge)
 	amqp_rpc_reply_t res;
 	amqp_rpc_reply_t result;
 	amqp_queue_purge_t s;
-	amqp_method_number_t method_ok = AMQP_QUEUE_PURGE_OK_METHOD;
+	amqp_method_number_t method_ok[] = { AMQP_QUEUE_PURGE_OK_METHOD, 0 };
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_queue_class_entry) == FAILURE) {
 		return;
@@ -1232,7 +1232,7 @@ PHP_METHOD(amqp_queue_class, purge)
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		AMQP_QUEUE_PURGE_METHOD,
-		&method_ok,
+		method_ok,
 		&s
 	);
 
@@ -1270,7 +1270,7 @@ PHP_METHOD(amqp_queue_class, cancel)
 	amqp_rpc_reply_t res;
 	amqp_rpc_reply_t result;
 	amqp_basic_cancel_t s;
-	amqp_method_number_t method_ok = AMQP_BASIC_CANCEL_OK_METHOD;
+	amqp_method_number_t method_ok[] = { AMQP_BASIC_CANCEL_OK_METHOD, 0 };
 
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|s", &id, amqp_queue_class_entry, &consumer_tag, &consumer_tag_len) == FAILURE) {
@@ -1304,7 +1304,7 @@ PHP_METHOD(amqp_queue_class, cancel)
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		AMQP_BASIC_CANCEL_METHOD,
-		&method_ok,
+		method_ok,
 		&s
 	);
 
@@ -1344,7 +1344,7 @@ PHP_METHOD(amqp_queue_class, unbind)
 
 	amqp_rpc_reply_t res;
 	amqp_queue_unbind_t s;
-	amqp_method_number_t method_ok = AMQP_QUEUE_UNBIND_OK_METHOD;
+	amqp_method_number_t method_ok[] = { AMQP_QUEUE_UNBIND_OK_METHOD, 0 };
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
 		return;
@@ -1381,7 +1381,7 @@ PHP_METHOD(amqp_queue_class, unbind)
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		AMQP_QUEUE_UNBIND_METHOD,
-		&method_ok,
+		method_ok,
 		&s);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
