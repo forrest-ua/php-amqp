@@ -576,10 +576,10 @@ PHP_METHOD(amqp_exchange_class, delete)
 	}
 
 	channel = AMQP_GET_CHANNEL(exchange);
-	AMQP_VERIFY_CHANNEL(channel, "Could not declare exchange.");
+	AMQP_VERIFY_CHANNEL(channel, "Could not delete exchange.");
 
 	connection = AMQP_GET_CONNECTION(channel);
-	AMQP_VERIFY_CONNECTION(connection, "Could not declare exchange.");
+	AMQP_VERIFY_CONNECTION(connection, "Could not delete exchange.");
 
 	res = amqp_simple_rpc(
 		connection->connection_resource->connection_state,
@@ -829,10 +829,10 @@ PHP_METHOD(amqp_exchange_class, publish)
 	}
 
 	channel = AMQP_GET_CHANNEL(exchange);
-	AMQP_VERIFY_CHANNEL(channel, "Could not publish to exchange exchange.");
+	AMQP_VERIFY_CHANNEL(channel, "Could not publish to exchange.");
 
 	connection = AMQP_GET_CONNECTION(channel);
-	AMQP_VERIFY_CONNECTION(connection, "Could not publish to exchange exchange.");
+	AMQP_VERIFY_CONNECTION(connection, "Could not publish to exchange.");
 
 #ifndef PHP_WIN32
 	/* Start ignoring SIGPIPE */
