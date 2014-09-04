@@ -48,7 +48,8 @@ function consumeThings($message, $queue) {
 		global $ex, $ex2;
 		global $q;
 
-        $ex->bind($ex2->getName(), '*');
+        $ex->bind($ex2->getName(), 'first-*', array('test' => 'passed', 'at' => time()));
+        $ex->bind($ex2->getName(), 'second-*');
         $q->delete();
 		return false;
 	}
