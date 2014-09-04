@@ -750,7 +750,7 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		*arguments
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
@@ -784,7 +784,7 @@ bind queue to exchange by routing key
 */
 PHP_METHOD(amqp_queue_class, bind)
 {
-	zval *id, *arguments = NULL;
+	zval *id, *zvalArguments = NULL;
 	amqp_queue_object *queue;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
@@ -794,10 +794,9 @@ PHP_METHOD(amqp_queue_class, bind)
 	int keyname_len = 0;
 
 	amqp_rpc_reply_t res;
-	amqp_queue_bind_t s;
-	amqp_method_number_t bind_ok[] = { AMQP_QUEUE_BIND_OK_METHOD, };
+	amqp_table_t *arguments;
 
-	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &zvalArguments) == FAILURE) {
 		return;
 	}
 
@@ -815,28 +814,24 @@ PHP_METHOD(amqp_queue_class, bind)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not bind queue.");
 
-	s.ticket 				= 0;
-	s.queue.len				= queue->name_len;
-	s.queue.bytes			= queue->name;
-	s.exchange.len			= exchange_name_len;
-	s.exchange.bytes		= exchange_name;
-	s.routing_key.len		= keyname_len;
-	s.routing_key.bytes		= keyname;
-	s.nowait				= 0;
-	s.arguments.num_entries = 0;
-	s.arguments.entries     = NULL;
-
-	if (arguments) {
-		s.arguments = *convert_zval_to_arguments(arguments);
+	if (zvalArguments) {
+		arguments = convert_zval_to_arguments(zvalArguments);
 	}
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_queue_bind(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_BIND_METHOD,
-		bind_ok,
-		&s
+		amqp_cstring_bytes(queue->name),
+		(exchange_name_len > 0 ? amqp_cstring_bytes(exchange_name) : amqp_empty_bytes),
+		(keyname_len  > 0 ? amqp_cstring_bytes(keyname)  : amqp_empty_bytes),
+		(zvalArguments ? *arguments : amqp_empty_table)
 	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+	if (zvalArguments) {
+		AMQP_EFREE_ARGUMENTS(arguments);
+	}
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -1201,9 +1196,6 @@ PHP_METHOD(amqp_queue_class, purge)
 	amqp_connection_object *connection;
 
 	amqp_rpc_reply_t res;
-	amqp_rpc_reply_t result;
-	amqp_queue_purge_t s;
-	amqp_method_number_t method_ok[] = { AMQP_QUEUE_PURGE_OK_METHOD, 0 };
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_queue_class_entry) == FAILURE) {
 		return;
@@ -1223,20 +1215,13 @@ PHP_METHOD(amqp_queue_class, purge)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not purge queue.");
 
-	s.ticket		= 0;
-	s.queue.len		= queue->name_len;
-	s.queue.bytes	= queue->name;
-	s.nowait		= 0;
-
-	result = amqp_simple_rpc(
+	amqp_queue_purge(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_PURGE_METHOD,
-		method_ok,
-		&s
+		amqp_cstring_bytes(queue->name)
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST result;
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -1267,11 +1252,8 @@ PHP_METHOD(amqp_queue_class, cancel)
 
 	char *consumer_tag = NULL;
 	int consumer_tag_len=0;
-	amqp_rpc_reply_t res;
-	amqp_rpc_reply_t result;
-	amqp_basic_cancel_t s;
-	amqp_method_number_t method_ok[] = { AMQP_BASIC_CANCEL_OK_METHOD, 0 };
 
+	amqp_rpc_reply_t res;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|s", &id, amqp_queue_class_entry, &consumer_tag, &consumer_tag_len) == FAILURE) {
 		return;
@@ -1290,25 +1272,13 @@ PHP_METHOD(amqp_queue_class, cancel)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not cancel queue.");
 
-	if (consumer_tag_len) {
-		s.consumer_tag.len = consumer_tag_len;
-		s.consumer_tag.bytes = consumer_tag;
-		s.nowait = 0;
-	} else {
-		s.consumer_tag.len = queue->consumer_tag_len;
-		s.consumer_tag.bytes = queue->consumer_tag;
-		s.nowait = 0;
-	}
-
-	result = amqp_simple_rpc(
+	amqp_basic_cancel(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_CANCEL_METHOD,
-		method_ok,
-		&s
+		(consumer_tag_len  > 0 ? amqp_cstring_bytes(consumer_tag)  : amqp_cstring_bytes(queue->consumer_tag))
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST result;
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -1332,7 +1302,7 @@ unbind queue from exchange
 */
 PHP_METHOD(amqp_queue_class, unbind)
 {
-	zval *id, *arguments = NULL;
+	zval *id, *zvalArguments = NULL;
 	amqp_queue_object *queue;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
@@ -1343,10 +1313,9 @@ PHP_METHOD(amqp_queue_class, unbind)
 	int keyname_len = 0;
 
 	amqp_rpc_reply_t res;
-	amqp_queue_unbind_t s;
-	amqp_method_number_t method_ok[] = { AMQP_QUEUE_UNBIND_OK_METHOD, 0 };
+	amqp_table_t *arguments;
 
-	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &zvalArguments) == FAILURE) {
 		return;
 	}
 
@@ -1363,26 +1332,26 @@ PHP_METHOD(amqp_queue_class, unbind)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not unbind queue.");
 
-	s.ticket				= 0;
-	s.queue.len				= queue->name_len;
-	s.queue.bytes			= queue->name;
-	s.exchange.len			= exchange_name_len;
-	s.exchange.bytes		= exchange_name;
-	s.routing_key.len		= keyname_len;
-	s.routing_key.bytes		= keyname;
-	s.arguments.num_entries = 0;
-	s.arguments.entries		= NULL;
-
-	if (arguments) {
-		s.arguments = *convert_zval_to_arguments(arguments);
+	if (zvalArguments) {
+		arguments = convert_zval_to_arguments(zvalArguments);
 	}
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_queue_unbind(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_UNBIND_METHOD,
-		method_ok,
-		&s);
+		amqp_cstring_bytes(queue->name),
+		(exchange_name_len > 0 ? amqp_cstring_bytes(exchange_name) : amqp_empty_bytes),
+		(keyname_len  > 0 ? amqp_cstring_bytes(keyname)  : amqp_empty_bytes),
+		(zvalArguments ? *arguments : amqp_empty_table)
+	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+	if (zvalArguments) {
+		AMQP_EFREE_ARGUMENTS(arguments);
+	}
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -1443,7 +1412,7 @@ PHP_METHOD(amqp_queue_class, delete)
 		(AMQP_IFEMPTY & flags) ? 1 : 0
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
