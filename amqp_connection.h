@@ -25,14 +25,12 @@
 
 
 void amqp_connection_dtor(void *object TSRMLS_DC);
-static void amqp_connection_resource_dtor_persistent(zend_rsrc_list_entry *resource TSRMLS_DC);
 zend_object_value amqp_connection_ctor(zend_class_entry *ce TSRMLS_DC);
 
 void php_amqp_connect(amqp_connection_object *amqp_connection);
 void php_amqp_disconnect(amqp_connection_object *amqp_connection);
 
-int get_next_available_channel(amqp_connection_object *connection, amqp_channel_object *channel);
-void remove_channel_from_connection(amqp_connection_object *connection, amqp_channel_object *channel);
+int unsigned get_next_available_channel_id(amqp_connection_object *connection, amqp_channel_object *channel);
 
 PHP_METHOD(amqp_connection_class, __construct);
 PHP_METHOD(amqp_connection_class, isConnected);
@@ -65,6 +63,9 @@ PHP_METHOD(amqp_connection_class, setReadTimeout);
 
 PHP_METHOD(amqp_connection_class, getWriteTimeout);
 PHP_METHOD(amqp_connection_class, setWriteTimeout);
+
+PHP_METHOD(amqp_connection_class, getLastChannelId);
+PHP_METHOD(amqp_connection_class, isPersistent);
 
 /*
 *Local variables:

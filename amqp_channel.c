@@ -89,19 +89,35 @@ HashTable *amqp_channel_object_get_debug_info(zval *object, int *is_temp TSRMLS_
 }
 #endif
 
-void amqp_channel_dtor(void *object TSRMLS_DC)
+void php_amqp_close_channel(amqp_channel_object *channel)
 {
-	amqp_channel_object *channel = (amqp_channel_object*)object;
 	amqp_connection_object *connection;
 
-	AMQP_ASSIGN_CONNECTION(connection, channel);
+	/* Pull out and verify the connection */
+	connection = AMQP_GET_CONNECTION(channel);
 
-	if (connection) {
-		remove_channel_from_connection(connection, channel);
+	channel->is_connected = '\0';
+
+	if (connection->is_connected && connection->connection_resource) {
+		amqp_channel_close(connection->connection_resource->connection_state, channel->channel_id, AMQP_REPLY_SUCCESS);
 	}
+
+	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
+
+	return;
+}
+
+
+void amqp_channel_dtor(void *object TSRMLS_DC)
+{
+	printf("channel dtor called\n");
+
+	amqp_channel_object *channel = (amqp_channel_object*)object;
 
 	/* Destroy the connection storage */
 	if (channel->connection) {
+		php_amqp_close_channel(channel);
+
 		zval_ptr_dtor(&channel->connection);
 	}
 
@@ -170,10 +186,11 @@ PHP_METHOD(amqp_channel_class, __construct)
 	AMQP_VERIFY_CONNECTION(connection, "Could not create channel.");
 
 	/* Figure out what the next available channel is on this connection */
-	channel->channel_id = get_next_available_channel(connection, channel);
+	channel->channel_id = get_next_available_channel_id(connection, channel);
+	zend_hash_index_update(connection->channels_hashtable, channel->channel_id, &channel, sizeof(amqp_channel_object **), NULL);
 
 	/* Check that we got a valid channel */
-	if (channel->channel_id < 0) {
+	if (!channel->channel_id) {
 		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Connection has no open channel slots remaining.", 0 TSRMLS_CC);
 		return;
 	}
@@ -202,6 +219,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 		channel->channel_id,
 		0,							/* prefetch window size */
 		channel->prefetch_count,	/* prefetch message count */
+		/* NOTE that RabbitMQ has reinterpreted global flag field. See https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos.global for details */
 		0							/* global flag */
 	);
 }
@@ -398,6 +416,7 @@ PHP_METHOD(amqp_channel_class, qos)
 			channel->channel_id,
 			channel->prefetch_size,
 			channel->prefetch_count,
+			/* NOTE that RabbitMQ has reinterpreted global flag field. See https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos.global for details */
 			0							/* Global flag - whether this change should affect every channel */
 		);
 	}

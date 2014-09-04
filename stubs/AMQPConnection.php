@@ -260,7 +260,6 @@ class AMQPConnection
     {
     }
 
-
     /**
      * Sets the interval of time to wait for outcome activity to AMQP broker
      *
@@ -279,6 +278,24 @@ class AMQPConnection
      * @return float
      */
     public function getWriteTimeout()
+    {
+    }
+
+    /**
+     * Return last used channel id during current connection session.
+     *
+     * @return int
+     */
+    public function getLastChannelId()
+    {
+    }
+
+    /**
+     * Whether connection persistent.
+     *
+     * @return bool|null
+     */
+    public function isPersistent()
     {
     }
 }
