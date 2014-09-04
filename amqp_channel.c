@@ -181,7 +181,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 	/* Open up the channel for use */
 	amqp_channel_open(connection->connection_resource->connection_state, channel->channel_id);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -414,10 +414,8 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 	zval *id;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
-	amqp_tx_select_t s;
-	amqp_method_number_t select_ok[] = { AMQP_TX_SELECT_OK_METHOD, 0};
-	amqp_rpc_reply_t res;
 
+	amqp_rpc_reply_t res;
 
 	/* Get the vhost from the method params */
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_channel_class_entry) == FAILURE) {
@@ -430,13 +428,12 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not start the transaction.");
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_tx_select(
 		connection->connection_resource->connection_state,
-		channel->channel_id,
-		AMQP_TX_SELECT_METHOD,
-		select_ok,
-		&s
+		channel->channel_id
 	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -462,10 +459,8 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 	zval *id;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
-	amqp_tx_commit_t s;
-	amqp_rpc_reply_t res;
-	amqp_method_number_t commit_ok[] = { AMQP_TX_COMMIT_OK_METHOD, 0 };
 
+	amqp_rpc_reply_t res;
 
 	/* Get the vhost from the method params */
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_channel_class_entry) == FAILURE) {
@@ -478,13 +473,12 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not start the transaction.");
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_tx_commit(
 		connection->connection_resource->connection_state,
-		channel->channel_id,
-		AMQP_TX_COMMIT_METHOD,
-		commit_ok,
-		&s
+		channel->channel_id
 	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -509,10 +503,8 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 	zval *id;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
-	amqp_tx_rollback_t s;
-	amqp_method_number_t rollback_ok[] = { AMQP_TX_ROLLBACK_OK_METHOD, 0};
-	amqp_rpc_reply_t res;
 
+	amqp_rpc_reply_t res;
 
 	/* Get the vhost from the method params */
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_channel_class_entry) == FAILURE) {
@@ -525,13 +517,12 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not start the transaction.");
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_tx_rollback(
 		connection->connection_resource->connection_state,
-		channel->channel_id,
-		AMQP_TX_ROLLBACK_METHOD,
-		rollback_ok,
-		&s
+		channel->channel_id
 	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
