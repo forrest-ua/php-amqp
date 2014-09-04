@@ -515,7 +515,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		*arguments
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
@@ -571,7 +571,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 		(AMQP_IFUNUSED & flags) ? 1 : 0
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -912,7 +912,7 @@ PHP_METHOD(amqp_exchange_class, bind)
 		(zvalArguments ? *arguments : amqp_empty_table)
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (zvalArguments) {
 		AMQP_EFREE_ARGUMENTS(arguments);
@@ -977,7 +977,7 @@ PHP_METHOD(amqp_exchange_class, unbind)
 		(zvalArguments ? *arguments : amqp_empty_table)
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (zvalArguments) {
 		AMQP_EFREE_ARGUMENTS(arguments);
