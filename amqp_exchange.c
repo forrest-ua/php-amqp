@@ -614,7 +614,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 
 	amqp_basic_properties_t props;
 
-	int r;
+	amqp_rpc_reply_t res;
 	amqp_bytes_t abt0, abt1, abt2;
 
 
@@ -830,7 +830,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 	abt2.len = msg_len;
 	abt2.bytes = msg;
 
-	r = amqp_basic_publish(
+	amqp_basic_publish(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		abt0,
@@ -854,12 +854,15 @@ PHP_METHOD(amqp_exchange_class, publish)
 	signal(SIGPIPE, old_handler);
 #endif
 
-	/* handle any errors that occured outside of signals */
-	if (r < 0) {
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-        spprintf(pstr, 0, "Socket error: %s", amqp_error_string2(-r));
-        zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_error(res, pstr, connection, channel);
+
+		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
 
