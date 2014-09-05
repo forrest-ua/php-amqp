@@ -618,7 +618,7 @@ zend_module_entry amqp_module_entry = {
 #endif
 
 
-void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel)
+void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC)
 {
 	/* Trim new lines */
 	switch (x.reply_type) {
@@ -643,7 +643,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 						(char *)m->reply_text.bytes);
 
 					/* Close connection with all its channels */
-					php_amqp_disconnect(connection);
+					php_amqp_disconnect(connection TSRMLS_CC);
 
 					/* No more error handling necessary, returning. */
 					return;
@@ -656,7 +656,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 						(char *)m->reply_text.bytes);
 
 					/* Close channel */
-					php_amqp_close_channel(channel);
+					php_amqp_close_channel(channel TSRMLS_CC);
 
 					/* No more error handling necessary, returning. */
 					return;
@@ -809,7 +809,9 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 	signal(SIGPIPE, old_handler);
 #endif
 
-	resource->last_channel_id = 0;
+	/* Useless, while we free memory here and NULL'ed resource pointer when remove resource from resources list manually later */
+	/* resource->last_channel_id = 0; */
+	/* resource->resource_id     = 0; */
 
 	pefree(resource, persistent);
 }

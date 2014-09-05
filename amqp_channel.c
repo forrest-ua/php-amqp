@@ -89,20 +89,37 @@ HashTable *amqp_channel_object_get_debug_info(zval *object, int *is_temp TSRMLS_
 }
 #endif
 
-void php_amqp_close_channel(amqp_channel_object *channel)
+void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 {
 	amqp_connection_object *connection;
 
 	/* Pull out and verify the connection */
 	connection = AMQP_GET_CONNECTION(channel);
 
+	/* First, remove it from active channels table to prevent recursion in case of connection error */
+	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
+
 	channel->is_connected = '\0';
 
+	// TODO: assertions
 	if (connection->is_connected && connection->connection_resource) {
 		amqp_channel_close(connection->connection_resource->connection_state, channel->channel_id, AMQP_REPLY_SUCCESS);
+
+		amqp_rpc_reply_t res;
+		res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+			char str[256];
+			char ** pstr = (char **) &str;
+			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+			zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_maybe_release_buffers(connection->connection_resource->connection_state);
+			return;
+		}
+		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 	}
 
-	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
 
 	return;
 }
@@ -114,12 +131,11 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 	amqp_channel_object *channel = (amqp_channel_object*)object;
 
-	/* Destroy the connection storage */
-	if (channel->connection) {
-		php_amqp_close_channel(channel);
+	php_amqp_close_channel(channel TSRMLS_CC);
 
-		zval_ptr_dtor(&channel->connection);
-	}
+
+	/* Destroy the connection storage */
+	zval_ptr_dtor(&channel->connection);
 
 	zend_object_std_dtor(&channel->zo TSRMLS_CC);
 
@@ -128,6 +144,8 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
 {
+	printf("channel ctor called\n");
+
 	zend_object_value new_value;
 	amqp_channel_object *channel = (amqp_channel_object*)emalloc(sizeof(amqp_channel_object));
 
@@ -159,6 +177,8 @@ zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
  */
 PHP_METHOD(amqp_channel_class, __construct)
 {
+	printf("channel __construct called\n");
+
 	zval *id;
 	zval *connection_object = NULL;
 
@@ -203,7 +223,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel);
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
@@ -457,7 +477,7 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel);
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		channel->is_connected = 0;
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
@@ -502,7 +522,7 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel);
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		channel->is_connected = 0;
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
@@ -546,7 +566,7 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel);
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		channel->is_connected = 0;
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);

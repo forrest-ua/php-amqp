@@ -419,7 +419,7 @@ typedef struct _amqp_envelope_object {
 #define PHP_AMQP_REVISION "no revision"
 #endif
 
-void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel);
+void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC);
 
 #endif	/* PHP_AMQP_H */
 

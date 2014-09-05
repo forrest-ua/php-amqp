@@ -112,6 +112,52 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	ZVAL_BOOL(value, connection->is_connected);
 	zend_hash_add(debug_info, "is_connected", sizeof("is_connected"), &value, sizeof(zval *), NULL);
 
+	MAKE_STD_ZVAL(value);
+
+	if (connection && connection->connection_resource) {
+		Z_ADDREF_P(value);
+		ZVAL_RESOURCE(value, connection->connection_resource->resource_id);
+	} else {
+		ZVAL_NULL(value);
+	}
+
+	zend_hash_add(debug_info, "connection_resource", sizeof("connection_resource"), &value, sizeof(zval *), NULL);
+
+	MAKE_STD_ZVAL(value);
+
+	if (connection && connection->connection_resource) {
+		ZVAL_BOOL(value, connection->connection_resource->is_persistent);
+	} else {
+		ZVAL_NULL(value);
+	}
+
+	zend_hash_add(debug_info, "is_persistent", sizeof("is_persistent"), &value, sizeof(zval *), NULL);
+
+	MAKE_STD_ZVAL(value);
+
+	if (connection && connection->connection_resource) {
+		ZVAL_LONG(value, connection->connection_resource->last_channel_id);
+	} else {
+		ZVAL_NULL(value);
+	}
+
+	zend_hash_add(debug_info, "last_channel_id", sizeof("last_channel_id"), &value, sizeof(zval *), NULL);
+
+
+//	amqp_channel_object **channel;
+//	MAKE_STD_ZVAL(value);
+//	array_init(value);
+//
+//	for (zend_hash_internal_pointer_reset(connection->channels_hashtable);
+//		 zend_hash_get_current_data(connection->channels_hashtable, (void **) &channel) == SUCCESS;
+//		 zend_hash_move_forward(connection->channels_hashtable)
+//	) {
+//		add_next_index_long(value, (*channel)->channel_id);
+//	}
+//
+//	Z_ADDREF_P(value);
+//	zend_hash_add(debug_info, "opened_channels", sizeof("opened_channels"), &value, sizeof(zval *), NULL);
+
 	/* Start adding values */
 	return debug_info;
 }
@@ -122,7 +168,7 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	handles disconnecting from amqp
 	called by disconnect(), reconnect(), and d_tor
  */
-void php_amqp_disconnect(amqp_connection_object *connection)
+void php_amqp_disconnect(amqp_connection_object *connection TSRMLS_DC)
 {
 	amqp_channel_object **channel;
 
@@ -131,35 +177,42 @@ void php_amqp_disconnect(amqp_connection_object *connection)
 	/* Pull the connection resource out for easy access */
 	amqp_connection_resource *resource = connection->connection_resource;
 
-	/* itearte over hashtable and close all channels, if any */
+	/* Iterate over hashtable and close all channels, if any. */
+
+	/* NOTE: when we have persistent connection we do not move channels between php requests
+	 *       due to current php-amqp extension limitation in AMQPChannel where __construct == channel.open AMQP method call
+	 *       and __destruct = channel.close AMQP method call
+	 */
+
 
 	for (zend_hash_internal_pointer_reset(connection->channels_hashtable);
 		 zend_hash_get_current_data(connection->channels_hashtable, (void **) &channel) == SUCCESS;
 		 zend_hash_move_forward(connection->channels_hashtable)
 	) {
-		php_amqp_close_channel(*channel);
+		php_amqp_close_channel(*channel TSRMLS_CC);
+	}
+
+	/* If it's persistent connection do not destroy connection resource (this keep connection alive) */
+	if (resource && resource->is_persistent) {
+		return;
+	}
+
+	if (resource) {
+		printf("Delete resource #%d\n", resource->resource_id);
+
+		zend_list_delete(resource->resource_id);
+
+		printf("Resource deleted\n");
+
+		connection->connection_resource = NULL;
 	}
 
 	connection->is_connected = '\0';
 
-	/* If it's persistent connection do not close this socket connection */
-	if (connection->is_connected == '\1' && resource->is_persistent) {
-		return;
-	}
-
-//	if (!resource || resource->is_persistent) {
-//		printf(" - php_amqp_disconnect - do not cleanup\n");
-//
-//		return;
-//	}
-
-
-	zend_list_delete(resource->resource_id);
-
 	return;
 }
 
-int php_amqp_start_connection(amqp_connection_object *connection, int persistent)
+int php_amqp_start_connection(amqp_connection_object *connection, int persistent TSRMLS_DC)
 {
 	char str[256];
 	char ** pstr = (char **) &str;
@@ -200,7 +253,7 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 
 		printf("  + going to open connection - failed\n");
 
-		php_amqp_disconnect(connection);
+		php_amqp_disconnect(connection TSRMLS_CC);
 
 		zend_throw_exception(amqp_connection_exception_class_entry, "Socket error: could not connect to host.", 0 TSRMLS_CC);
 		return 0;
@@ -221,7 +274,7 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 	);
 
 	if (x.reply_type != AMQP_RESPONSE_NORMAL) {
-		amqp_error(x, pstr, connection, NULL);
+		amqp_error(x, pstr, connection, NULL TSRMLS_CC);
 
 		strcat(*pstr, " - Potential login failure.");
 		zend_throw_exception(amqp_connection_exception_class_entry, *pstr, 0 TSRMLS_CC);
@@ -249,28 +302,8 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 	printf(" + php_amqp_connect\n");
 
 	/* Clean up old memory allocations which are now invalid (new connection) */
-	if (connection->connection_resource) {
-		printf("old connection resource detected\n");
-
-//		if (connection->connection_resource->slots) {
-//			int slot;
-//			for (slot = 1; slot < DEFAULT_CHANNELS_PER_CONNECTION; slot++) {
-//				if (connection->connection_resource->slots[slot] != 0) {
-//					if ((long) connection->connection_resource->slots[slot] != -1) {
-//						/* We found the channel, disconnect it: */
-//						amqp_channel_close(connection->connection_resource->connection_state, slot, AMQP_REPLY_SUCCESS);
-//					}
-//
-//					/* Clean up our local storage */
-//					connection->connection_resource->slots[slot] = 0;
-//					connection->connection_resource->used_slots--;
-//				}
-//			}
-//
-//			pefree(connection->connection_resource->slots, persistent);
-//		}
-//		pefree(connection->connection_resource, persistent);
-	}
+	assert(connection->connection_resource == NULL);
+	assert(!connection->is_connected);
 
 	if (persistent) {
 		printf("  + wannabe persistent, searching\n");
@@ -282,11 +315,13 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 			/* Stash the connection resource in the connection */
 			connection->connection_resource = le->ptr;
 
+			/* TODO: to check whether connection (raw socket) stay alive we have to do some socket operation */
+
 			/* Set connection status to connected */
 			connection->is_connected = '\1';
 			printf("  + wannabe persistent - found!\n");
 		} else {
-			result = php_amqp_start_connection(connection, persistent);
+			result = php_amqp_start_connection(connection, persistent TSRMLS_CC);
 
 			if (result) {
 				/* Store a reference in the persistence list */
@@ -301,7 +336,7 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 			return result;
 		}
 	} else {
-		return php_amqp_start_connection(connection, persistent);
+		return php_amqp_start_connection(connection, persistent TSRMLS_CC);
 	}
 
 	return 1;
@@ -380,7 +415,7 @@ void amqp_connection_dtor(void *object TSRMLS_DC)
     int slot;
 	amqp_connection_object *connection = (amqp_connection_object*)object;
 
-	php_amqp_disconnect(connection);
+	php_amqp_disconnect(connection TSRMLS_CC);
 
 	zend_hash_clean(connection->channels_hashtable);
 	FREE_HASHTABLE(connection->channels_hashtable);
@@ -643,19 +678,15 @@ PHP_METHOD(amqp_connection_class, connect)
 	/* Get the connection object out of the store */
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	if (connection->connection_resource && connection->connection_resource->is_persistent) {
-		zend_throw_exception(amqp_connection_exception_class_entry, "Attempt to open non-persistent connection when persistent one is active", 0 TSRMLS_CC);
-		return;
-	}
-
 	if (connection->is_connected) {
+
+		assert(connection->connection_resource != NULL);
+		if (connection->connection_resource->is_persistent) {
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "Attempt to start transient connection where persistent transient one already established. Continue.");
+		}
+
 		RETURN_TRUE;
 	}
-
-	if (connection->connection_resource) {
-		/* cleanup by ourselves*/
-	}
-
 
 	/* Actually connect this resource to the broker */
 	RETURN_BOOL(php_amqp_connect(connection, 0 TSRMLS_CC));
@@ -673,6 +704,16 @@ PHP_METHOD(amqp_connection_class, pconnect)
 	/* Try to pull amqp object out of method params */
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_connection_class_entry) == FAILURE) {
 		return;
+	}
+
+	if (connection->is_connected) {
+
+		assert(connection->connection_resource != NULL);
+		if (!connection->connection_resource->is_persistent) {
+    		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Attempt to start persistent connection where transient one already established. Continue.");
+    	}
+
+		RETURN_TRUE;
 	}
 
 	/* Get the connection object out of the store */
@@ -703,7 +744,15 @@ PHP_METHOD(amqp_connection_class, pdisconnect)
 	/* Get the connection object out of the store */
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
+	if (!connection->is_connected) {
+		RETURN_TRUE;
+	}
+
+	assert(connection->connection_resource != NULL);
+
 	if (!connection->connection_resource->is_persistent) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Attempt to close persistent connection where transient one already established. Abort.");
+
 		RETURN_FALSE;
 	}
 
@@ -715,7 +764,7 @@ PHP_METHOD(amqp_connection_class, pdisconnect)
 
 	connection->connection_resource->is_persistent = 0;
 
-	php_amqp_disconnect(connection);
+	php_amqp_disconnect(connection TSRMLS_CC);
 
 	RETURN_TRUE;
 }
@@ -737,7 +786,19 @@ PHP_METHOD(amqp_connection_class, disconnect)
 	/* Get the connection object out of the store */
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	php_amqp_disconnect(connection);
+	if (!connection->is_connected) {
+		RETURN_TRUE;
+	}
+
+	if (connection->connection_resource->is_persistent) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Attempt to close transient connection where persistent one already established. Abort.");
+
+		RETURN_FALSE;
+	}
+
+	assert(connection->connection_resource != NULL);
+
+	php_amqp_disconnect(connection TSRMLS_CC);
 
 	RETURN_TRUE;
 }
@@ -760,7 +821,7 @@ PHP_METHOD(amqp_connection_class, reconnect)
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	if (connection->is_connected == '\1') {
-		php_amqp_disconnect(connection);
+		php_amqp_disconnect(connection TSRMLS_CC);
 	}
 
 	php_amqp_connect(connection, 0 TSRMLS_CC);
