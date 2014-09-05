@@ -133,7 +133,6 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 	php_amqp_close_channel(channel TSRMLS_CC);
 
-
 	/* Destroy the connection storage */
 	zval_ptr_dtor(&channel->connection);
 
@@ -207,7 +206,9 @@ PHP_METHOD(amqp_channel_class, __construct)
 
 	/* Figure out what the next available channel is on this connection */
 	channel->channel_id = get_next_available_channel_id(connection, channel);
-	zend_hash_index_update(connection->channels_hashtable, channel->channel_id, &channel, sizeof(amqp_channel_object **), NULL);
+	if (FAILURE == zend_hash_index_update(connection->channels_hashtable, channel->channel_id, (void *) &channel, sizeof(amqp_channel_object **), NULL)) {
+		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Failed to add channel to connection slot.", 0 TSRMLS_CC);
+	}
 
 	/* Check that we got a valid channel */
 	if (!channel->channel_id) {

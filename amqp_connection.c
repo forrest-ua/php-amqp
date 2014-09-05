@@ -421,6 +421,8 @@ void amqp_connection_dtor(void *object TSRMLS_DC)
 	php_amqp_disconnect(connection TSRMLS_CC);
 
 	zend_hash_clean(connection->channels_hashtable);
+
+	zend_hash_destroy(connection->channels_hashtable);
 	FREE_HASHTABLE(connection->channels_hashtable);
 
 	/* Clean up all the strings */
