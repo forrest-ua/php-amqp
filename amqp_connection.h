@@ -39,6 +39,7 @@ PHP_METHOD(amqp_connection_class, pconnect);
 PHP_METHOD(amqp_connection_class, pdisconnect);
 PHP_METHOD(amqp_connection_class, disconnect);
 PHP_METHOD(amqp_connection_class, reconnect);
+PHP_METHOD(amqp_connection_class, preconnect);
 
 PHP_METHOD(amqp_connection_class, getLogin);
 PHP_METHOD(amqp_connection_class, setLogin);

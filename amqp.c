@@ -98,6 +98,9 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_reconnect, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_preconnect, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_getLogin, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
 ZEND_END_ARG_INFO()
 
@@ -444,6 +447,7 @@ zend_function_entry amqp_connection_class_functions[] = {
 	PHP_ME(amqp_connection_class, pdisconnect, 	arginfo_amqp_connection_class_pdisconnect,	ZEND_ACC_PUBLIC)
 	PHP_ME(amqp_connection_class, disconnect, 	arginfo_amqp_connection_class_disconnect,	ZEND_ACC_PUBLIC)
 	PHP_ME(amqp_connection_class, reconnect, 	arginfo_amqp_connection_class_reconnect,	ZEND_ACC_PUBLIC)
+	PHP_ME(amqp_connection_class, preconnect, 	arginfo_amqp_connection_class_preconnect,	ZEND_ACC_PUBLIC)
 
 	PHP_ME(amqp_connection_class, getLogin, 	arginfo_amqp_connection_class_getLogin,		ZEND_ACC_PUBLIC)
 	PHP_ME(amqp_connection_class, setLogin, 	arginfo_amqp_connection_class_setLogin,		ZEND_ACC_PUBLIC)
@@ -812,6 +816,16 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 	/* Useless, while we free memory here and NULL'ed resource pointer when remove resource from resources list manually later */
 	/* resource->last_channel_id = 0; */
 	/* resource->resource_id     = 0; */
+
+	if (resource->resource_key_len) {
+
+		if (persistent && zend_hash_exists(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1)) {
+			zend_hash_del(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1);
+		}
+
+		pefree(resource->resource_key, persistent);
+	}
+
 
 	pefree(resource, persistent);
 }

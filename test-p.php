@@ -1,6 +1,6 @@
 <?php
 
-var_dump(memory_get_usage(true), memory_get_usage());
+//var_dump(memory_get_usage(true), memory_get_usage());
 
 $conn = new AMQPConnection();
 
@@ -23,6 +23,6 @@ $conn = null;
 $ch=null;
 
 
-var_dump(memory_get_usage(true), memory_get_usage());
+//var_dump(memory_get_usage(true), memory_get_usage());
 
 echo "DONE", PHP_EOL;

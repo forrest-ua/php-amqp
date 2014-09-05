@@ -307,6 +307,8 @@ typedef struct _amqp_connection_resource {
 	int resource_id;
 	int unsigned last_channel_id;
 	int is_persistent;
+	char *resource_key;
+	int resource_key_len;
 	amqp_connection_state_t connection_state;
 	amqp_socket_t *socket;
 } amqp_connection_resource;

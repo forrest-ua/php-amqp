@@ -6,7 +6,7 @@
 class AMQPConnection
 {
     /**
-     * Establish a connection with the AMQP broker.
+     * Establish a transient connection with the AMQP broker.
      *
      * This method will initiate a connection with the AMQP broker.
      *
@@ -43,7 +43,7 @@ class AMQPConnection
     }
 
     /**
-     * Closes the connection with the AMQP broker.
+     * Closes the transient connection with the AMQP broker.
      *
      * This method will close an open connection with the AMQP broker.
      *
@@ -137,13 +137,23 @@ class AMQPConnection
     }
 
     /**
-     * Close any open connections and initiate a new one with the AMQP broker.
+     * Close any open transient connections and initiate a new one with the AMQP broker.
      *
      * @return boolean TRUE on success or FALSE on failure.
      */
     public function reconnect()
     {
     }
+
+    /**
+     * Close any open persistent connections and initiate a new one with the AMQP broker.
+     *
+     * @return boolean TRUE on success or FALSE on failure.
+     */
+    public function preconnect()
+    {
+    }
+
 
     /**
      * Set the hostname used to connect to the AMQP broker.
