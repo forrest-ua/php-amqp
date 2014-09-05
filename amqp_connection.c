@@ -791,6 +791,11 @@ PHP_METHOD(amqp_connection_class, pdisconnect)
 
 	php_amqp_disconnect(connection);
 
+	/* Free memory of persistent allocation */
+	pefree(connection->connection_resource->slots, 1);
+	pefree(connection->connection_resource, 1);
+	connection->connection_resource = 0;
+
 	RETURN_TRUE;
 }
 
