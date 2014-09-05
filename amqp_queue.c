@@ -760,7 +760,6 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = '\0';
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
@@ -843,7 +842,6 @@ PHP_METHOD(amqp_queue_class, bind)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = 0;
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
@@ -1260,7 +1258,6 @@ PHP_METHOD(amqp_queue_class, purge)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = 0;
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
@@ -1332,7 +1329,6 @@ PHP_METHOD(amqp_queue_class, cancel)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = 0;
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
@@ -1406,7 +1402,6 @@ PHP_METHOD(amqp_queue_class, unbind)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = 0;
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
@@ -1467,7 +1462,6 @@ PHP_METHOD(amqp_queue_class, delete)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		channel->is_connected = 0;
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
