@@ -720,7 +720,6 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 	long message_count;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_queue_class_entry) == FAILURE) {
-		zend_throw_exception(zend_exception_get_default(TSRMLS_C), "Error parsing parameters." ,0 TSRMLS_CC);
 		return;
 	}
 
