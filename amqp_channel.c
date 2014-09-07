@@ -127,7 +127,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 
 void amqp_channel_dtor(void *object TSRMLS_DC)
 {
-	printf("channel dtor called\n");
+//	printf("channel dtor called\n");
 
 	amqp_channel_object *channel = (amqp_channel_object*)object;
 
@@ -143,7 +143,7 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
 {
-	printf("channel ctor called\n");
+//	printf("channel ctor called\n");
 
 	zend_object_value new_value;
 	amqp_channel_object *channel = (amqp_channel_object*)emalloc(sizeof(amqp_channel_object));
@@ -176,7 +176,7 @@ zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
  */
 PHP_METHOD(amqp_channel_class, __construct)
 {
-	printf("channel __construct called\n");
+//	printf("channel __construct called\n");
 
 	zval *id;
 	zval *connection_object = NULL;

@@ -832,13 +832,13 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 static void amqp_connection_resource_dtor_persistent(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 {
-	printf("persistent connection resource dtor called\n");
+//	printf("persistent connection resource dtor called\n");
 	connection_resource_destructor(rsrc, 1);
 }
 
 static void amqp_connection_resource_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 {
-	printf("non-persistent connection resource dtor called\n");
+//	printf("non-persistent connection resource dtor called\n");
 	connection_resource_destructor(rsrc, 0);
 }
 
