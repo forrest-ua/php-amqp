@@ -251,7 +251,7 @@ void parse_amqp_table(amqp_table_t *table, zval *result)
 	return;
 }
 
-void convert_amqp_envelope_to_zval(amqp_envelope_t *amqp_envelope, zval *envelopeZval TSRMLS_CC)
+void convert_amqp_envelope_to_zval(amqp_envelope_t *amqp_envelope, zval *envelopeZval TSRMLS_DC)
 {
 	amqp_envelope_object *envelope;
 
@@ -819,7 +819,7 @@ PHP_METHOD(amqp_queue_class, get)
 	}
 
 	MAKE_STD_ZVAL(message);
-	convert_amqp_envelope_to_zval(&envelope, message);
+	convert_amqp_envelope_to_zval(&envelope, message TSRMLS_CC);
 
 	amqp_destroy_envelope(&envelope);
 
@@ -920,7 +920,7 @@ PHP_METHOD(amqp_queue_class, consume)
 		}
 
 		MAKE_STD_ZVAL(message);
-		convert_amqp_envelope_to_zval(&envelope, message);
+		convert_amqp_envelope_to_zval(&envelope, message TSRMLS_CC);
 
 		amqp_destroy_envelope(&envelope);
 
