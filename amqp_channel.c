@@ -91,6 +91,7 @@ HashTable *amqp_channel_object_get_debug_info(zval *object, int *is_temp TSRMLS_
 
 void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 {
+//	printf(" - call php_amqp_close_channel, %d\n", channel->channel_id);
 	amqp_connection_object *connection;
 
 	/* Pull out and verify the connection */
@@ -99,10 +100,18 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 	/* First, remove it from active channels table to prevent recursion in case of connection error */
 	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
 
+	if (!channel->is_connected) {
+		printf("    x not connected php_amqp_close_channel, %d\n", channel->channel_id);
+		/* Nothing to do more - channel was previously marked as closed, possibly, due to channel-level error */
+		return;
+	}
+
 	channel->is_connected = '\0';
 
-	// TODO: assertions
-	if (connection->is_connected && connection->connection_resource) {
+	if (connection->is_connected) {
+//		printf("    > doing close, %d\n", channel->channel_id);
+		assert(connection->connection_resource != NULL);
+
 		amqp_channel_close(connection->connection_resource->connection_state, channel->channel_id, AMQP_REPLY_SUCCESS);
 
 		amqp_rpc_reply_t res;
@@ -114,12 +123,11 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 			zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
-			amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 			return;
 		}
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
+//	} else {
+//		printf("    x connection not connected, %d\n", channel->channel_id);
 	}
-
 
 	return;
 }
@@ -131,7 +139,9 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 	amqp_channel_object *channel = (amqp_channel_object*)object;
 
-	php_amqp_close_channel(channel TSRMLS_CC);
+	if (channel->is_connected) {
+		php_amqp_close_channel(channel TSRMLS_CC);
+	}
 
 	/* Destroy the connection storage */
 	zval_ptr_dtor(&channel->connection);
@@ -227,10 +237,8 @@ PHP_METHOD(amqp_channel_class, __construct)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	channel->is_connected = '\1';
 
@@ -481,10 +489,8 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -525,10 +531,8 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -568,10 +572,8 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }

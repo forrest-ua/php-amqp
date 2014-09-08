@@ -251,198 +251,77 @@ void parse_amqp_table(amqp_table_t *table, zval *result)
 	return;
 }
 
-/*
-Read a message that is pending on a channel. A call to basic.get or basic.consume must preceed this call.
-*/
-int read_message_from_channel(amqp_connection_state_t connection, zval *envelopeZval TSRMLS_DC) {
-	size_t body_received = 0;
-	size_t body_target = 0;
-	char *message_body_buffer = NULL;
-	amqp_frame_t frame;
-	int result = 0;
+void convert_amqp_envelope_to_zval(amqp_envelope_t *amqp_envelope, zval *envelopeZval TSRMLS_CC)
+{
 	amqp_envelope_object *envelope;
-	amqp_basic_properties_t * p;
 
 	/* Build the envelope */
 	object_init_ex(envelopeZval, amqp_envelope_class_entry);
 	envelope = (amqp_envelope_object *)zend_object_store_get_object(envelopeZval TSRMLS_CC);
 
-	/* The "standard" for this is to continuously loop over frames in the pipeline until an entire message is read */
-	while (1) {
-		/* Release pending buffers for ingestion */
-		amqp_maybe_release_buffers(connection);
-		result = amqp_simple_wait_frame(connection, &frame);
+	AMQP_SET_STR_PROPERTY(envelope->routing_key,	amqp_envelope->routing_key.bytes, amqp_envelope->routing_key.len);
+	AMQP_SET_STR_PROPERTY(envelope->exchange_name,	amqp_envelope->exchange.bytes, amqp_envelope->exchange.len);
+	AMQP_SET_LONG_PROPERTY(envelope->delivery_tag,	amqp_envelope->delivery_tag);
+	AMQP_SET_BOOL_PROPERTY(envelope->is_redelivery,	amqp_envelope->redelivered);
 
-		/* Check that the basic read from frame did not fail */
-		if (result < 0) {
-			zend_throw_exception(amqp_connection_exception_class_entry, amqp_error_string2(-result), -result TSRMLS_CC);
-			return AMQP_READ_ERROR;
-		}
+	amqp_basic_properties_t *p = &amqp_envelope->message.properties;
+	amqp_message_t    *message = &amqp_envelope->message;
 
-		if (frame.payload.method.id == AMQP_CHANNEL_CLOSE_OK_METHOD) {
-			amqp_channel_close_t *err = (amqp_channel_close_t *)frame.payload.method.decoded;
-			char str[256];
-			char **pstr = (char **)&str;
-			if (err) {
-				spprintf(pstr, 0, "Server error: %d", (int)err->reply_code);
-			} else {
-				spprintf(pstr, 0, "Unknown server error occurred.");
-			}
-
-			zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-			return AMQP_READ_ERROR;
-		}
-
-		/* Verify that we have a method frame first  */
-		if (frame.frame_type != AMQP_FRAME_METHOD) {
-			continue;
-		}
-
-		if (frame.payload.method.id == AMQP_BASIC_GET_OK_METHOD) {
-			/* get message metadata */
-			amqp_basic_get_ok_t *delivery = (amqp_basic_get_ok_t *) frame.payload.method.decoded;
-
-			AMQP_SET_STR_PROPERTY(envelope->routing_key,	delivery->routing_key.bytes, delivery->routing_key.len);
-			AMQP_SET_STR_PROPERTY(envelope->exchange_name,	delivery->exchange.bytes, delivery->exchange.len);
-			AMQP_SET_LONG_PROPERTY(envelope->delivery_tag,	delivery->delivery_tag);
-			AMQP_SET_BOOL_PROPERTY(envelope->is_redelivery,	delivery->redelivered);
-		} else if (frame.payload.method.id == AMQP_BASIC_DELIVER_METHOD) {
-			/* get message metadata */
-			amqp_basic_deliver_t *delivery = (amqp_basic_deliver_t *) frame.payload.method.decoded;
-
-			AMQP_SET_STR_PROPERTY(envelope->routing_key,	delivery->routing_key.bytes, delivery->routing_key.len);
-			AMQP_SET_STR_PROPERTY(envelope->exchange_name,	delivery->exchange.bytes, delivery->exchange.len);
-			AMQP_SET_LONG_PROPERTY(envelope->delivery_tag,	delivery->delivery_tag);
-			AMQP_SET_BOOL_PROPERTY(envelope->is_redelivery,	delivery->redelivered);
-		} else if (frame.payload.method.id == AMQP_BASIC_GET_EMPTY_METHOD) {
-			/* We did a get and there were no messages */
-			return AMQP_READ_NO_MESSAGES;
-        } else if (frame.payload.method.id == AMQP_CONNECTION_CLOSE_METHOD) {
-            amqp_channel_close_t *err = NULL;
-            amqp_send_method(
-                connection,
-                frame.channel,
-                AMQP_CONNECTION_CLOSE_OK_METHOD,
-                &err
-            );
-            return AMQP_READ_ERROR;
-        }
-
-
-		/* Read in the next frame */
-		result = amqp_simple_wait_frame(connection, &frame);
-		if (result < 0) {
-			zend_throw_exception(amqp_connection_exception_class_entry, amqp_error_string2(-result), -result TSRMLS_CC);
-			return AMQP_READ_ERROR;
-		}
-
-		/* Make sure it is something we expect*/
-		if (frame.frame_type != AMQP_FRAME_HEADER) {
-			zend_throw_exception(amqp_queue_exception_class_entry, "Invalid frame type, expecting header.", 0 TSRMLS_CC);
-			return AMQP_READ_ERROR;
-		}
-
-		body_target = frame.payload.properties.body_size;
-
-		/* Only allocate space for the body if there is a body */
-		if (body_target > 0) {
-			message_body_buffer = (char *) emalloc(body_target);
-			memset(message_body_buffer, 0, body_target);
-		}
-
-		p = (amqp_basic_properties_t *) frame.payload.properties.decoded;
-
-		if (p->_flags & AMQP_BASIC_CONTENT_TYPE_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->content_type, p->content_type.bytes, p->content_type.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_CONTENT_ENCODING_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->content_encoding, p->content_encoding.bytes, p->content_encoding.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_TYPE_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->type, p->type.bytes, p->type.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_TIMESTAMP_FLAG) {
-			AMQP_SET_LONG_PROPERTY(envelope->timestamp, p->timestamp);
-		}
-
-		if (p->_flags & AMQP_BASIC_DELIVERY_MODE_FLAG) {
-			AMQP_SET_LONG_PROPERTY(envelope->delivery_mode, p->delivery_mode);
-		}
-
-		if (p->_flags & AMQP_BASIC_PRIORITY_FLAG) {
-			AMQP_SET_LONG_PROPERTY(envelope->priority, p->priority);
-		}
-
-		if (p->_flags & AMQP_BASIC_EXPIRATION_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->expiration, p->expiration.bytes, p->expiration.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_USER_ID_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->user_id, p->user_id.bytes, p->user_id.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_APP_ID_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->app_id, p->app_id.bytes, p->app_id.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_MESSAGE_ID_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->message_id, p->message_id.bytes, p->message_id.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_REPLY_TO_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->reply_to, p->reply_to.bytes, p->reply_to.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_CORRELATION_ID_FLAG) {
-			AMQP_SET_STR_PROPERTY(envelope->correlation_id, p->correlation_id.bytes, p->correlation_id.len);
-		}
-
-		if (p->_flags & AMQP_BASIC_HEADERS_FLAG) {
-			zval_dtor(envelope->headers);
-			parse_amqp_table(&(p->headers), envelope->headers);
-		}
-
-		/* Check if we are going to even get a body */
-		if (frame.payload.properties.body_size == 0) {
-			/* No point in reading the next frame. Bail! */
-			break;
-		}
-
-		/* Lets get the body */
-		while (body_received < body_target) {
-			/* Read in the next frame */
-			result = amqp_simple_wait_frame(connection, &frame);
-			if (result < 0) {
-				zend_throw_exception(amqp_connection_exception_class_entry, amqp_error_string2(-result), -result TSRMLS_CC);
-				return AMQP_READ_ERROR;
-			}
-
-			if (frame.frame_type != AMQP_FRAME_BODY) {
-				zend_throw_exception(amqp_queue_exception_class_entry, "Invalid frame type, expecting body.", 0 TSRMLS_CC);
-				return AMQP_READ_ERROR;
-			}
-
-			memcpy(message_body_buffer + body_received, frame.payload.body_fragment.bytes, frame.payload.body_fragment.len);
-			body_received += frame.payload.body_fragment.len;
-		}
-
-		/* We are done with this message, we can get out of the loop now */
-		break;
+	if (p->_flags & AMQP_BASIC_CONTENT_TYPE_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->content_type, p->content_type.bytes, p->content_type.len);
 	}
 
-	/* Put the final touches into the zval */
-	envelope->body = estrndup(message_body_buffer, body_target);
-    envelope->body_len = body_target;
-
-	/* Clean up message buffer */
-	if (message_body_buffer) {
-		efree(message_body_buffer);
+	if (p->_flags & AMQP_BASIC_CONTENT_ENCODING_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->content_encoding, p->content_encoding.bytes, p->content_encoding.len);
 	}
 
-	return AMQP_READ_SUCCESS;
+	if (p->_flags & AMQP_BASIC_TYPE_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->type, p->type.bytes, p->type.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_TIMESTAMP_FLAG) {
+		AMQP_SET_LONG_PROPERTY(envelope->timestamp, p->timestamp);
+	}
+
+	if (p->_flags & AMQP_BASIC_DELIVERY_MODE_FLAG) {
+		AMQP_SET_LONG_PROPERTY(envelope->delivery_mode, p->delivery_mode);
+	}
+
+	if (p->_flags & AMQP_BASIC_PRIORITY_FLAG) {
+		AMQP_SET_LONG_PROPERTY(envelope->priority, p->priority);
+	}
+
+	if (p->_flags & AMQP_BASIC_EXPIRATION_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->expiration, p->expiration.bytes, p->expiration.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_USER_ID_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->user_id, p->user_id.bytes, p->user_id.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_APP_ID_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->app_id, p->app_id.bytes, p->app_id.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_MESSAGE_ID_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->message_id, p->message_id.bytes, p->message_id.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_REPLY_TO_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->reply_to, p->reply_to.bytes, p->reply_to.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_CORRELATION_ID_FLAG) {
+		AMQP_SET_STR_PROPERTY(envelope->correlation_id, p->correlation_id.bytes, p->correlation_id.len);
+	}
+
+	if (p->_flags & AMQP_BASIC_HEADERS_FLAG) {
+		zval_dtor(envelope->headers);
+		parse_amqp_table(&(p->headers), envelope->headers);
+	}
+
+	envelope->body     = estrndup(message->body.bytes, message->body.len);
+	envelope->body_len = message->body.len;
 }
 
 /* {{{ proto AMQPQueue::__construct(AMQPChannel channel)
@@ -760,7 +639,6 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
 
@@ -771,7 +649,6 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 	AMQP_SET_NAME(queue, name);
 	efree(name);
 
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 	RETURN_LONG(message_count);
 }
 /* }}} */
@@ -828,6 +705,7 @@ PHP_METHOD(amqp_queue_class, bind)
 		s.arguments = *convert_zval_to_arguments(arguments);
 	}
 
+	// TODO: migrate to amqp_* API methods
 	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -842,10 +720,8 @@ PHP_METHOD(amqp_queue_class, bind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -862,7 +738,6 @@ PHP_METHOD(amqp_queue_class, get)
     amqp_queue_object *queue;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
-	amqp_basic_get_t s;
 	zval *message;
 	int read;
 
@@ -887,29 +762,68 @@ PHP_METHOD(amqp_queue_class, get)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not get messages from queue.");
 
-	/* Build basic.get request */
-	s.ticket = 0,
-	s.queue = amqp_cstring_bytes(queue->name);
-	s.no_ack = (AMQP_AUTOACK & flags) ? 1 : 0;
-
-	/* Get the next message using basic.get */
-	amqp_send_method(
+	amqp_rpc_reply_t res = amqp_basic_get(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_GET_METHOD,
-		&s
+		amqp_cstring_bytes(queue->name),
+		(AMQP_AUTOACK & flags) ? 1 : 0
 	);
 
-	/* Read the message off of the channel */
-	MAKE_STD_ZVAL(message);
-	read = read_message_from_channel(connection->connection_resource->connection_state, message TSRMLS_CC);
+	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+		char str[256];
+		char ** pstr = (char **) &str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-	if (read == AMQP_READ_SUCCESS) {
-		COPY_PZVAL_TO_ZVAL(*return_value, message);
-	} else {
-		zval_ptr_dtor(&message);
+		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		return;
+	}
+
+	if (AMQP_BASIC_GET_EMPTY_METHOD == res.reply.id) {
 		RETURN_FALSE;
 	}
+
+	if (AMQP_BASIC_GET_OK_METHOD != res.reply.id) {
+		// TODO: handle any other methods
+		RETURN_FALSE;
+	}
+
+
+
+    /* Fill the envelope from response */
+	amqp_basic_get_ok_t *get_ok_method = res.reply.decoded;
+
+	amqp_envelope_t envelope;
+
+	envelope.channel      = channel->channel_id;
+	envelope.consumer_tag = amqp_empty_bytes;
+	envelope.delivery_tag = get_ok_method->delivery_tag;
+	envelope.redelivered  = get_ok_method->redelivered;
+	envelope.exchange     = amqp_bytes_malloc_dup(get_ok_method->exchange);
+	envelope.routing_key  = amqp_bytes_malloc_dup(get_ok_method->routing_key);
+
+  	res = amqp_read_message(
+		connection->connection_resource->connection_state,
+		channel->channel_id,
+		&envelope.message,
+	0);
+
+	if (AMQP_RESPONSE_NORMAL != res.reply_type) {
+		char str[256];
+		char ** pstr = (char **) &str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+
+		amqp_destroy_envelope(&envelope);
+		return;
+	}
+
+	MAKE_STD_ZVAL(message);
+	convert_amqp_envelope_to_zval(&envelope, message);
+
+	amqp_destroy_envelope(&envelope);
+
+	COPY_PZVAL_TO_ZVAL(*return_value, message);
 }
 /* }}} */
 
@@ -946,10 +860,10 @@ PHP_METHOD(amqp_queue_class, consume)
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	channel = AMQP_GET_CHANNEL(queue);
-	AMQP_VERIFY_CHANNEL(channel, "Could not get queue.");
+	AMQP_VERIFY_CHANNEL(channel, "Could not get channel.");
 
 	connection = AMQP_GET_CONNECTION(channel);
-	AMQP_VERIFY_CONNECTION(connection, "Could not get queue.");
+	AMQP_VERIFY_CONNECTION(connection, "Could not get connection.");
 
 	/* Setup the consume */
 	arguments = convert_zval_to_arguments(queue->arguments);
@@ -970,71 +884,71 @@ PHP_METHOD(amqp_queue_class, consume)
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
-	do {
+	while(1) {
 		/* Initialize the message */
 		zval *message;
-		MAKE_STD_ZVAL(message);
 
-		/* Read the message */
-		read = read_message_from_channel(connection->connection_resource->connection_state, message TSRMLS_CC);
+		amqp_rpc_reply_t res;
+		amqp_envelope_t envelope;
 
-		/* Make the callback */
-		if (read == AMQP_READ_SUCCESS) {
-			zval *params;
-			zval *retval_ptr = NULL;
+		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
-			/* Build the parameter array */
-			MAKE_STD_ZVAL(params);
-			array_init(params);
+		res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, NULL, 0);
 
-			/* Dump it into the params array */
-			add_index_zval(params, 0, message);
-			Z_ADDREF_P(message);
+		if (AMQP_RESPONSE_NORMAL != res.reply_type) {
+			char str[256];
+			char ** pstr = (char **) &str;
+			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			/* Add a pointer to the queue: */
-			add_index_zval(params, 1, id);
-			Z_ADDREF_P(id);
+			zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 
-			/* Convert everything to be callable */
-    		zend_fcall_info_args(&fci, params TSRMLS_CC);
-			/* Initialize the return value pointer */
-			fci.retval_ptr_ptr = &retval_ptr;
-
-			/* Call the function, and track the return value */
-			if (!&fci) {
-				return;
-			}
-			if (!&fci_cache) {
-            				return;
-            			}
-
-			call_result =zend_call_function(
-                          				&fci,
-                          				&fci_cache TSRMLS_CC);
-
- 			if (call_result == SUCCESS)
- 				 {
-				if (fci.retval_ptr_ptr) {
-				  if (*fci.retval_ptr_ptr) {
-				  		COPY_PZVAL_TO_ZVAL(*return_value, *fci.retval_ptr_ptr);
-				  }
-				}
-			}
-
-			/* Check if user land function wants to bail */
-			if (EG(exception) || (Z_TYPE_P(return_value) == IS_BOOL && !Z_BVAL_P(return_value))) {
-				function_call_succeeded = 0;
-			}
-
-			/* Clean up our mess */
-			zend_fcall_info_args_clear(&fci, 1);
-			zval_ptr_dtor(&params);
-			zval_ptr_dtor(&message);
-		} else {
-			zval_ptr_dtor(&message);
+			amqp_destroy_envelope(&envelope);
+			return;
 		}
 
-	} while (read != AMQP_READ_ERROR && function_call_succeeded == 1);
+		MAKE_STD_ZVAL(message);
+		convert_amqp_envelope_to_zval(&envelope, message);
+
+		amqp_destroy_envelope(&envelope);
+
+		/* Make the callback */
+		zval *params;
+		zval *retval_ptr = NULL;
+
+		/* Build the parameter array */
+		MAKE_STD_ZVAL(params);
+		array_init(params);
+
+		/* Dump it into the params array */
+		add_index_zval(params, 0, message);
+		Z_ADDREF_P(message);
+
+		/* Add a pointer to the queue: */
+		add_index_zval(params, 1, id);
+		Z_ADDREF_P(id);
+
+		/* Convert everything to be callable */
+		zend_fcall_info_args(&fci, params TSRMLS_CC);
+		/* Initialize the return value pointer */
+		fci.retval_ptr_ptr = &retval_ptr;
+
+		/* Call the function, and track the return value */
+    	if (zend_call_function(&fci, &fci_cache TSRMLS_CC) == SUCCESS && fci.retval_ptr_ptr && *fci.retval_ptr_ptr) {
+			COPY_PZVAL_TO_ZVAL(*return_value, *fci.retval_ptr_ptr);
+  		}
+
+		/* Clean up our mess */
+		zend_fcall_info_args_clear(&fci, 1);
+		zval_ptr_dtor(&params);
+		zval_ptr_dtor(&message);
+
+		/* Check if user land function wants to bail */
+		if (EG(exception) || (Z_TYPE_P(return_value) == IS_BOOL && !Z_BVAL_P(return_value))) {
+			break;
+		}
+	}
+
+	return;
 }
 /* }}} */
 
@@ -1076,6 +990,7 @@ PHP_METHOD(amqp_queue_class, ack)
 	s.delivery_tag = deliveryTag;
 	s.multiple = (AMQP_MULTIPLE & flags) ? 1 : 0;
 
+	// TODO: migrate to amqp_* API call
 	res = amqp_send_method(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1084,6 +999,7 @@ PHP_METHOD(amqp_queue_class, ack)
 	);
 
 	if (res) {
+		// TODO: proper error handling
 		channel->is_connected = 0;
 		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not ack message, error code=%d", res);
 		return;
@@ -1132,6 +1048,7 @@ PHP_METHOD(amqp_queue_class, nack)
 	s.multiple = (AMQP_MULTIPLE & flags) ? 1 : 0;
 	s.requeue = (AMQP_REQUEUE & flags) ? 1 : 0;
 
+	// TODO: migrate to amqp_* API call
 	res = amqp_send_method(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1139,6 +1056,7 @@ PHP_METHOD(amqp_queue_class, nack)
 		&s
 	);
 
+	// TODO: proper error handling
 	if (res) {
 		channel->is_connected = 0;
 		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not nack message, error code=%d", res);
@@ -1186,6 +1104,7 @@ PHP_METHOD(amqp_queue_class, reject)
 	s.delivery_tag = deliveryTag;
 	s.requeue = (AMQP_REQUEUE & flags) ? 1 : 0;
 
+	// TODO: migrate to amqp_* API call
 	res = amqp_send_method(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1194,6 +1113,7 @@ PHP_METHOD(amqp_queue_class, reject)
 	);
 
 	if (res) {
+		// TODO: proper error handling
 		channel->is_connected = 0;
 		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not reject message, error code=%d", res);
 		return;
@@ -1242,6 +1162,7 @@ PHP_METHOD(amqp_queue_class, purge)
 	s.queue.bytes	= queue->name;
 	s.nowait		= 0;
 
+	// TODO: migrate to amqp_* API methods
 	result = amqp_simple_rpc(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1258,10 +1179,8 @@ PHP_METHOD(amqp_queue_class, purge)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -1313,6 +1232,7 @@ PHP_METHOD(amqp_queue_class, cancel)
 		s.nowait = 0;
 	}
 
+    // TODO: migrate to amqp_* API methods
 	result = amqp_simple_rpc(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1329,10 +1249,8 @@ PHP_METHOD(amqp_queue_class, cancel)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -1389,6 +1307,7 @@ PHP_METHOD(amqp_queue_class, unbind)
 		s.arguments = *convert_zval_to_arguments(arguments);
 	}
 
+	// TODO: migrate to amqp_* API methods
 	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -1402,10 +1321,8 @@ PHP_METHOD(amqp_queue_class, unbind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_TRUE;
 }
@@ -1462,12 +1379,10 @@ PHP_METHOD(amqp_queue_class, delete)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
 
 	message_count = r->message_count;
-	amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 
 	RETURN_LONG(message_count);
 }

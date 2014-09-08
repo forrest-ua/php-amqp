@@ -193,6 +193,8 @@ void php_amqp_disconnect(amqp_connection_object *connection TSRMLS_DC)
 
 	/* If it's persistent connection do not destroy connection resource (this keep connection alive) */
 	if (resource && resource->is_persistent) {
+		/* Cleanup buffers to reduce memory usage in idle mode */
+		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
 		return;
 	}
 
@@ -227,6 +229,7 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 	memset(connection->connection_resource, 0, sizeof(amqp_connection_resource));
 
 	connection->connection_resource->last_channel_id = 0;
+	connection->connection_resource->is_connected = '\0';
 
 	connection->connection_resource->resource_id = ZEND_REGISTER_RESOURCE(NULL, connection->connection_resource, persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource);
 
@@ -257,6 +260,9 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 		zend_throw_exception(amqp_connection_exception_class_entry, "Socket error: could not connect to host.", 0 TSRMLS_CC);
 		return 0;
 	}
+
+	// TODO: test whether we can cast connection as connected because actual AMQP header sends in amqp_login methos
+	connection->connection_resource->is_connected = '\1';
 
 	php_amqp_set_read_timeout(connection TSRMLS_CC);
 	php_amqp_set_write_timeout(connection TSRMLS_CC);
@@ -398,7 +404,7 @@ int php_amqp_set_write_timeout(amqp_connection_object *connection TSRMLS_DC)
 	return 1;
 }
 
-int unsigned get_next_available_channel_id(amqp_connection_object *connection, amqp_channel_object *channel)
+amqp_channel_t get_next_available_channel_id(amqp_connection_object *connection, amqp_channel_object *channel)
 {
 	/* Pull out the ring buffer for ease of use */
 	amqp_connection_resource *resource = connection->connection_resource;
@@ -418,7 +424,12 @@ void amqp_connection_dtor(void *object TSRMLS_DC)
     int slot;
 	amqp_connection_object *connection = (amqp_connection_object*)object;
 
-	php_amqp_disconnect(connection TSRMLS_CC);
+	if (connection->is_connected) {
+		assert(connection->connection_resource != NULL);
+		php_amqp_disconnect(connection TSRMLS_CC);
+	}
+
+	assert(connection->connection_resource == NULL);
 
 	zend_hash_clean(connection->channels_hashtable);
 

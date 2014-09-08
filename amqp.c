@@ -646,6 +646,27 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 						(int) m->reply_text.len,
 						(char *)m->reply_text.bytes);
 
+					/*
+					 *    - If r.reply.id == AMQP_CONNECTION_CLOSE_METHOD a connection exception
+					 *      occurred, cast r.reply.decoded to amqp_connection_close_t* to see
+					 *      details of the exception. The client amqp_send_method() a
+					 *      amqp_connection_close_ok_t and disconnect from the broker.
+					 */
+
+					amqp_connection_close_ok_t *decoded = (amqp_connection_close_ok_t *) NULL;
+
+					amqp_send_method(
+						connection->connection_resource->connection_state,
+						0, /* NOTE: 0-channel is reserved for things like this */
+						AMQP_CONNECTION_CLOSE_OK_METHOD,
+						&decoded
+					);
+
+					/* Mark connection as closed to prevent sending any further requests */
+					connection->is_connected = '\0';
+					/* Prevent finishing AMQP connection in connection resource destructor */
+					connection->connection_resource->is_connected = '\0';
+
 					/* Close connection with all its channels */
 					php_amqp_disconnect(connection TSRMLS_CC);
 
@@ -654,10 +675,33 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 				}
 				case AMQP_CHANNEL_CLOSE_METHOD: {
 					amqp_channel_close_t *m = (amqp_channel_close_t *) x.reply.decoded;
+
 					spprintf(pstr, 0, "Server channel error: %d, message: %.*s",
 						m->reply_code,
 						(int)m->reply_text.len,
 						(char *)m->reply_text.bytes);
+
+					/*
+					 *    - If r.reply.id == AMQP_CHANNEL_CLOSE_METHOD a channel exception
+					 *      occurred, cast r.reply.decoded to amqp_channel_close_t* to see details
+					 *      of the exception. The client should amqp_send_method() a
+					 *      amqp_channel_close_ok_t. The channel must be re-opened before it
+					 *      can be used again. Any resources associated with the channel
+					 *      (auto-delete exchanges, auto-delete queues, consumers) are invalid
+					 *      and must be recreated before attempting to use them again.
+					 */
+
+					amqp_channel_close_ok_t *decoded = (amqp_channel_close_ok_t *) NULL;
+
+					amqp_send_method(
+						connection->connection_resource->connection_state,
+						channel->channel_id, /* NOTE: currently we do not handle channels properly, so we may accidentally close wrong channel */
+						AMQP_CHANNEL_CLOSE_OK_METHOD,
+						&decoded
+					);
+
+					/* Mark channel as closed to prevent sending channel.close request */
+					channel->is_connected = '\0';
 
 					/* Close channel */
 					php_amqp_close_channel(channel TSRMLS_CC);
@@ -805,7 +849,11 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 	amqp_connection_resource *resource = (amqp_connection_resource *)rsrc->ptr;
 
-	amqp_connection_close(resource->connection_state, AMQP_REPLY_SUCCESS);
+	// NOTE: connection may be closed in case of previous failure
+	if (resource->is_connected) {
+		amqp_connection_close(resource->connection_state, AMQP_REPLY_SUCCESS);
+	}
+
 	amqp_destroy_connection(resource->connection_state);
 
 #ifndef PHP_WIN32
@@ -825,7 +873,6 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 		pefree(resource->resource_key, persistent);
 	}
-
 
 	pefree(resource, persistent);
 }

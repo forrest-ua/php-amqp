@@ -297,15 +297,16 @@ extern int le_amqp_connection_resource_persistent;
 typedef struct _amqp_channel_object {
 	zend_object zo;
 	zval *connection;
-	int unsigned channel_id;
+	amqp_channel_t channel_id;
 	char is_connected;
 	int prefetch_count;
 	int prefetch_size;
 } amqp_channel_object;
 
 typedef struct _amqp_connection_resource {
+	char is_connected;
 	int resource_id;
-	int unsigned last_channel_id;
+	amqp_channel_t last_channel_id;
 	int is_persistent;
 	char *resource_key;
 	int resource_key_len;
