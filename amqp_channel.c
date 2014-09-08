@@ -125,7 +125,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 			zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
-//	} else {
+	} else {
 //		printf("    x connection not connected, %d\n", channel->channel_id);
 	}
 
@@ -251,6 +251,17 @@ PHP_METHOD(amqp_channel_class, __construct)
 		/* NOTE that RabbitMQ has reinterpreted global flag field. See https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos.global for details */
 		0							/* global flag */
 	);
+
+	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+		char str[256];
+		char ** pstr = (char **) &str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		return;
+	}
 }
 /* }}} */
 
@@ -332,6 +343,17 @@ PHP_METHOD(amqp_channel_class, setPrefetchCount)
 			channel->prefetch_count,
 			0
 		);
+
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+			char str[256];
+			char ** pstr = (char **) &str;
+			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			return;
+		}
 	}
 
 	RETURN_TRUE;
@@ -388,6 +410,17 @@ PHP_METHOD(amqp_channel_class, setPrefetchSize)
 			channel->prefetch_count,
 			0
 		);
+
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+			char str[256];
+			char ** pstr = (char **) &str;
+			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			return;
+		}
 	}
 
 	RETURN_TRUE;
@@ -448,6 +481,17 @@ PHP_METHOD(amqp_channel_class, qos)
 			/* NOTE that RabbitMQ has reinterpreted global flag field. See https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.qos.global for details */
 			0							/* Global flag - whether this change should affect every channel */
 		);
+
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+			char str[256];
+			char ** pstr = (char **) &str;
+			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			return;
+		}
 	}
 
 	RETURN_TRUE;
