@@ -849,7 +849,7 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 	amqp_connection_resource *resource = (amqp_connection_resource *)rsrc->ptr;
 
-	// NOTE: connection may be closed in case of previous failure
+	/* connection may be closed in case of previous failure */
 	if (resource->is_connected) {
 		amqp_connection_close(resource->connection_state, AMQP_REPLY_SUCCESS);
 	}
@@ -879,13 +879,11 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 static void amqp_connection_resource_dtor_persistent(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 {
-//	printf("persistent connection resource dtor called\n");
 	connection_resource_destructor(rsrc, 1 TSRMLS_CC);
 }
 
 static void amqp_connection_resource_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 {
-//	printf("non-persistent connection resource dtor called\n");
 	connection_resource_destructor(rsrc, 0 TSRMLS_CC);
 }
 

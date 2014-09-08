@@ -91,7 +91,6 @@ HashTable *amqp_channel_object_get_debug_info(zval *object, int *is_temp TSRMLS_
 
 void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 {
-//	printf(" - call php_amqp_close_channel, %d\n", channel->channel_id);
 	amqp_connection_object *connection;
 
 	/* Pull out and verify the connection */
@@ -101,7 +100,6 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
 
 	if (!channel->is_connected) {
-//		printf("    x not connected php_amqp_close_channel, %d\n", channel->channel_id);
 		/* Nothing to do more - channel was previously marked as closed, possibly, due to channel-level error */
 		return;
 	}
@@ -109,7 +107,6 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 	channel->is_connected = '\0';
 
 	if (connection->is_connected) {
-//		printf("    > doing close, %d\n", channel->channel_id);
 		assert(connection->connection_resource != NULL);
 
 		amqp_channel_close(connection->connection_resource->connection_state, channel->channel_id, AMQP_REPLY_SUCCESS);
@@ -125,8 +122,6 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 			zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
-	} else {
-//		printf("    x connection not connected, %d\n", channel->channel_id);
 	}
 
 	return;
@@ -135,8 +130,6 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 
 void amqp_channel_dtor(void *object TSRMLS_DC)
 {
-//	printf("channel dtor called\n");
-
 	amqp_channel_object *channel = (amqp_channel_object*)object;
 
 	if (channel->is_connected) {
@@ -153,8 +146,6 @@ void amqp_channel_dtor(void *object TSRMLS_DC)
 
 zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
 {
-//	printf("channel ctor called\n");
-
 	zend_object_value new_value;
 	amqp_channel_object *channel = (amqp_channel_object*)emalloc(sizeof(amqp_channel_object));
 
@@ -186,8 +177,6 @@ zend_object_value amqp_channel_ctor(zend_class_entry *ce TSRMLS_DC)
  */
 PHP_METHOD(amqp_channel_class, __construct)
 {
-//	printf("channel __construct called\n");
-
 	zval *id;
 	zval *connection_object = NULL;
 
