@@ -157,8 +157,12 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_setWriteTimeout, ZEND_SEND_
 	ZEND_ARG_INFO(0, timeout)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_getLastChannelId, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_getUsedChannels, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_getMaxChannelId, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
+ZEND_END_ARG_INFO()
+
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_amqp_connection_class_isPersistent, ZEND_SEND_BY_VAL, ZEND_RETURN_VALUE, 0)
 ZEND_END_ARG_INFO()
@@ -473,7 +477,8 @@ zend_function_entry amqp_connection_class_functions[] = {
     PHP_ME(amqp_connection_class, getWriteTimeout, 	arginfo_amqp_connection_class_getWriteTimeout,	ZEND_ACC_PUBLIC)
     PHP_ME(amqp_connection_class, setWriteTimeout, 	arginfo_amqp_connection_class_setWriteTimeout,	ZEND_ACC_PUBLIC)
 
-    PHP_ME(amqp_connection_class, getLastChannelId, arginfo_amqp_connection_class_getLastChannelId,	ZEND_ACC_PUBLIC)
+    PHP_ME(amqp_connection_class, getUsedChannels, arginfo_amqp_connection_class_getUsedChannels,	ZEND_ACC_PUBLIC)
+    PHP_ME(amqp_connection_class, getMaxChannelId, arginfo_amqp_connection_class_getMaxChannelId,	ZEND_ACC_PUBLIC)
     PHP_ME(amqp_connection_class, isPersistent, 	arginfo_amqp_connection_class_isPersistent,		ZEND_ACC_PUBLIC)
 
 	{NULL, NULL, NULL}	/* Must be the last line in amqp_functions[] */
@@ -835,6 +840,7 @@ PHP_INI_END()
 
 static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persistent TSRMLS_DC)
 {
+	zend_rsrc_list_entry *le;
 #ifndef PHP_WIN32
 	void * old_handler;
 
@@ -867,13 +873,19 @@ static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persi
 
 	if (resource->resource_key_len) {
 
-		if (persistent && zend_hash_exists(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1)) {
-			zend_hash_del(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1);
-		}
+//		if (persistent && zend_hash_find(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1, (void **)&le) == SUCCESS) {
+//			/* Make sure noting changed in persistence list */
+//			if (le->ptr == rsrc->ptr) {
+//				zend_hash_del(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1);
+//			} else {
+//				printf("CHANGED\n");
+//			}
+//		}
 
 		pefree(resource->resource_key, persistent);
 	}
 
+	pefree(resource->slots, persistent);
 	pefree(resource, persistent);
 }
 

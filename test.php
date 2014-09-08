@@ -1,31 +1,24 @@
 <?php
-//var_dump(memory_get_usage(true), memory_get_usage());
+$cnn = new AMQPConnection();
+$cnn->connect();
 
-$conn = new AMQPConnection();
+var_dump($cnn);die;
+//for ($i = 0; $i < PHP_AMQP_MAX_CHANNELS; $i++) {
+//for ($i = 0; $i < 1000; $i++) {
+    $channel = new AMQPChannel($cnn);
+    //echo $channel->getChannelId(), PHP_EOL;
+    echo 'destroy channel', PHP_EOL;
+    $channel = null;
+//}
 
-//var_dump($conn);
 
-//debug_zval_dump($conn);
-$conn->connect();
-//debug_zval_dump($conn);
+echo "Good\n";
 
-
-$ch = new AMQPChannel($conn);
-//debug_zval_dump($ch);
-
-var_dump($conn->getLastChannelId());
-
-$conn->disconnect();
-
-//echo "Going to kill resource", PHP_EOL;
-//$conn->disconnect();
-//echo "Resource should be killed", PHP_EOL;
-//$conn->disconnect();
-//echo "Resource should be killed", PHP_EOL;
-//
-$ch=null;
-$conn = null;
-
-//var_dump(memory_get_usage(true), memory_get_usage());
+try {
+    new AMQPChannel($cnn);
+    echo "Bad\n";
+} catch(Exception $e) {
+    echo get_class($e), ': ', $e->getMessage(), PHP_EOL;
+}
 
 echo "DONE", PHP_EOL;

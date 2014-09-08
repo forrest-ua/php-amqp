@@ -7,10 +7,11 @@ AMQPConnection too many channels on a connection
 $cnn = new AMQPConnection();
 $cnn->connect();
 
+$channels = array();
+
 for ($i = 0; $i < PHP_AMQP_MAX_CHANNELS; $i++) {
-	$channel = new AMQPChannel($cnn);
-    //echo $channel->getChannelId(), PHP_EOL;
-    $channel = null;
+	$channel = $channels[] = new AMQPChannel($cnn);
+    //echo '#', $channel->getChannelId(), ', used ', $cnn->getUsedChannels(), ' of ', $cnn->getMaxChannelId(), PHP_EOL;
 }
 
 echo "Good\n";

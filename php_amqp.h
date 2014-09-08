@@ -179,8 +179,11 @@ extern zend_class_entry *amqp_exception_class_entry,
 #define DEFAULT_AUTOACK						"0"			/* These are all strings to facilitate setting default ini values */
 #define DEFAULT_PREFETCH_COUNT				"3"
 
-#if DEFAULT_CHANNELS_PER_CONNECTION > 0
-	#define PHP_AMQP_MAX_CHANNELS DEFAULT_CHANNELS_PER_CONNECTION
+/* #define DEFAULT_CHANNELS_PER_CONNECTION AMQP_DEFAULT_MAX_CHANNELS */
+#define PHP_AMQP_DEFAULT_MAX_CHANNELS 256
+
+#if PHP_AMQP_DEFAULT_MAX_CHANNELS > 0
+	#define PHP_AMQP_MAX_CHANNELS PHP_AMQP_DEFAULT_MAX_CHANNELS
 #else
 	#define PHP_AMQP_MAX_CHANNELS 65535 // Note that the maximum number of channels the protocol supports is 65535 (2^16, with the 0-channel reserved)
 #endif
@@ -306,7 +309,8 @@ typedef struct _amqp_channel_object {
 typedef struct _amqp_connection_resource {
 	char is_connected;
 	int resource_id;
-	amqp_channel_t last_channel_id;
+	amqp_channel_t used_slots;
+    amqp_channel_object **slots;
 	int is_persistent;
 	char *resource_key;
 	int resource_key_len;
@@ -330,7 +334,6 @@ typedef struct _amqp_connection_object {
 	double write_timeout;
 	double connect_timeout;
 	amqp_connection_resource *connection_resource;
-	HashTable *channels_hashtable;
 } amqp_connection_object;
 
 typedef struct _amqp_queue_object {

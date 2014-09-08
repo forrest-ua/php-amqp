@@ -296,7 +296,16 @@ class AMQPConnection
      *
      * @return int
      */
-    public function getLastChannelId()
+    public function getUsedChannels()
+    {
+    }
+
+    /**
+     * Get the maximum number of channels the connection can handle.
+     *
+     * @return int|null
+     */
+    public function getMaxChannelId()
     {
     }
 

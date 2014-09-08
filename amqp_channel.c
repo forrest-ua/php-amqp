@@ -93,11 +93,15 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 {
 	amqp_connection_object *connection;
 
+	assert(channel != NULL);
+
 	/* Pull out and verify the connection */
 	connection = AMQP_GET_CONNECTION(channel);
 
+	assert(connection != NULL);
+
 	/* First, remove it from active channels table to prevent recursion in case of connection error */
-	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
+	unregister_channel(connection, channel->channel_id);
 
 	if (!channel->is_connected) {
 		/* Nothing to do more - channel was previously marked as closed, possibly, due to channel-level error */
@@ -131,10 +135,15 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 void amqp_channel_dtor(void *object TSRMLS_DC)
 {
 	amqp_channel_object *channel = (amqp_channel_object*)object;
+	amqp_connection_object *connection;
+
+	connection = AMQP_GET_CONNECTION(channel);
 
 	if (channel->is_connected) {
 		php_amqp_close_channel(channel TSRMLS_CC);
 	}
+
+	assert(connection != NULL);
 
 	/* Destroy the connection storage */
 	zval_ptr_dtor(&channel->connection);
@@ -204,15 +213,16 @@ PHP_METHOD(amqp_channel_class, __construct)
 	AMQP_VERIFY_CONNECTION(connection, "Could not create channel.");
 
 	/* Figure out what the next available channel is on this connection */
-	channel->channel_id = get_next_available_channel_id(connection, channel);
-	if (FAILURE == zend_hash_index_update(connection->channels_hashtable, channel->channel_id, (void *) &channel, sizeof(amqp_channel_object **), NULL)) {
-		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Failed to add channel to connection slot.", 0 TSRMLS_CC);
-	}
+	channel->channel_id = get_available_channel_id(connection);
 
 	/* Check that we got a valid channel */
 	if (!channel->channel_id) {
 		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Connection has no open channel slots remaining.", 0 TSRMLS_CC);
 		return;
+	}
+
+	if (FAILURE == register_channel(connection, channel, channel->channel_id)) {
+		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Failed to add channel to connection slot.", 0 TSRMLS_CC);
 	}
 
 	/* Open up the channel for use */

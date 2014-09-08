@@ -136,29 +136,21 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	MAKE_STD_ZVAL(value);
 
 	if (connection && connection->connection_resource) {
-		ZVAL_LONG(value, connection->connection_resource->last_channel_id);
+		ZVAL_LONG(value, connection->connection_resource->used_slots);
 	} else {
 		ZVAL_NULL(value);
 	}
 
-	zend_hash_add(debug_info, "last_channel_id", sizeof("last_channel_id"), &value, sizeof(zval *), NULL);
+	zend_hash_add(debug_info, "used_channels", sizeof("used_channels"), &value, sizeof(zval *), NULL);
 
-	/* Uncomment to view active channels on connection*/
-	/*
-	amqp_channel_object **channel;
 	MAKE_STD_ZVAL(value);
-	array_init(value);
-
-	for (zend_hash_internal_pointer_reset(connection->channels_hashtable);
-		 zend_hash_get_current_data(connection->channels_hashtable, (void **) &channel) == SUCCESS;
-		 zend_hash_move_forward(connection->channels_hashtable)
-	) {
-		add_next_index_long(value, (*channel)->channel_id);
+	if (connection && connection->is_connected) {
+		ZVAL_LONG(value, amqp_get_channel_max(connection->connection_resource->connection_state));
+	} else {
+		ZVAL_NULL(value);
 	}
 
-	Z_ADDREF_P(value);
-	zend_hash_add(debug_info, "opened_channels", sizeof("opened_channels"), &value, sizeof(zval *), NULL);
-	*/
+	zend_hash_add(debug_info, "max_channel_id", sizeof("max_channel_id"), &value, sizeof(zval *), NULL);
 
 	/* Start adding values */
 	return debug_info;
@@ -172,23 +164,26 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
  */
 void php_amqp_disconnect(amqp_connection_object *connection TSRMLS_DC)
 {
-	amqp_channel_object **channel;
+	amqp_channel_object *channel;
 
 	/* Pull the connection resource out for easy access */
 	amqp_connection_resource *resource = connection->connection_resource;
 
-	/* Iterate over hashtable and close all channels, if any. */
 
 	/* NOTE: when we have persistent connection we do not move channels between php requests
 	 *       due to current php-amqp extension limitation in AMQPChannel where __construct == channel.open AMQP method call
 	 *       and __destruct = channel.close AMQP method call
 	 */
 
-	for (zend_hash_internal_pointer_reset(connection->channels_hashtable);
-		 zend_hash_get_current_data(connection->channels_hashtable, (void **) &channel) == SUCCESS;
-		 zend_hash_move_forward(connection->channels_hashtable)
-	) {
-		php_amqp_close_channel(*channel TSRMLS_CC);
+	/* Clean up old memory allocations which are now invalid (new connection) */
+	if (resource && resource->slots) {
+		amqp_channel_t slot;
+
+		for (slot = 1; slot < PHP_AMQP_DEFAULT_MAX_CHANNELS + 1; slot++) {
+			if (connection->connection_resource->slots[slot] != 0) {
+				php_amqp_close_channel(connection->connection_resource->slots[slot] TSRMLS_CC);
+			}
+		}
 	}
 
 	/* If it's persistent connection do not destroy connection resource (this keep connection alive) */
@@ -217,8 +212,14 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 	connection->connection_resource = (amqp_connection_resource *)pemalloc(sizeof(amqp_connection_resource), persistent);
 	memset(connection->connection_resource, 0, sizeof(amqp_connection_resource));
 
-	connection->connection_resource->last_channel_id = 0;
 	connection->connection_resource->is_connected = '\0';
+
+	/* Allocate space for the channel slots in the ring buffer */
+	connection->connection_resource->slots = (amqp_channel_object **)pecalloc(PHP_AMQP_DEFAULT_MAX_CHANNELS + 1, sizeof(amqp_channel_object*), persistent);
+	memset(connection->connection_resource->slots, 0, sizeof(amqp_channel_object*));
+
+	/* Initialize all the data */
+	connection->connection_resource->used_slots = 0;
 
 	connection->connection_resource->resource_id = ZEND_REGISTER_RESOURCE(NULL, connection->connection_resource, persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource);
 
@@ -254,7 +255,7 @@ int php_amqp_start_connection(amqp_connection_object *connection, int persistent
 	amqp_rpc_reply_t res = amqp_login(
 		connection->connection_resource->connection_state,
 		connection->vhost,
-		AMQP_DEFAULT_MAX_CHANNELS,
+		PHP_AMQP_DEFAULT_MAX_CHANNELS,
 		AMQP_DEFAULT_FRAME_SIZE,
 		AMQP_HEARTBEAT,
 		AMQP_SASL_METHOD_PLAIN,
@@ -299,31 +300,46 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
     	key_len = spprintf(&key, 0, "amqp_conn_res_%s_%d_%s_%s", connection->host, connection->port, connection->vhost, connection->login);
 
 		if (zend_hash_find(&EG(persistent_list), key, key_len + 1, (void **)&le) == SUCCESS) {
+
+			if (Z_TYPE_P(le) != le_amqp_connection_resource_persistent) {
+				return 0;
+			}
+
 			/* An entry for this connection resource already exists */
 			/* Stash the connection resource in the connection */
 			connection->connection_resource = le->ptr;
+			connection->connection_resource->resource_id = ZEND_REGISTER_RESOURCE(NULL, connection->connection_resource, persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource);
 
 			/* TODO: to check whether connection (raw socket) stay alive we have to do some socket operation */
-
+			printf("PERSISTENT found\n");
 			/* Set connection status to connected */
 			connection->is_connected = '\1';
 		} else {
 			result = php_amqp_start_connection(connection, persistent TSRMLS_CC);
+
+			printf("PERSISTENT created\n");
 
 			if (result) {
 				connection->connection_resource->resource_key     = pestrndup(key, key_len, persistent);
 				connection->connection_resource->resource_key_len = key_len;
 
 				/* Store a reference in the persistence list */
-				new_le.ptr = connection->connection_resource;
+				new_le.ptr  = connection->connection_resource;
 				new_le.type = persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource;
-				zend_hash_add(&EG(persistent_list), key, key_len + 1, &new_le, sizeof(zend_rsrc_list_entry), NULL);
+
+				if (FAILURE == zend_hash_update(&EG(persistent_list), key, key_len + 1, &new_le, sizeof(zend_rsrc_list_entry), NULL)) {
+					efree(key);
+					return 0;
+				}
 			}
 
 			efree(key);
 
 			return result;
 		}
+
+		efree(key);
+
 	} else {
 		return php_amqp_start_connection(connection, persistent TSRMLS_CC);
 	}
@@ -384,17 +400,59 @@ int php_amqp_set_write_timeout(amqp_connection_object *connection TSRMLS_DC)
 	return 1;
 }
 
-amqp_channel_t get_next_available_channel_id(amqp_connection_object *connection, amqp_channel_object *channel)
+amqp_channel_t get_available_channel_id(amqp_connection_object *connection)
 {
+	assert(connection != NULL);
+	assert(connection->connection_resource != NULL);
+
 	/* Pull out the ring buffer for ease of use */
 	amqp_connection_resource *resource = connection->connection_resource;
 
+	assert(resource->slots != NULL);
+
 	/* Check if there are any open slots */
-	if (resource->last_channel_id > PHP_AMQP_MAX_CHANNELS - 1) {
-		return 0;
+	if (resource->used_slots >= PHP_AMQP_DEFAULT_MAX_CHANNELS + 1) {
+    	return 0;
+    }
+
+	amqp_channel_t slot;
+
+	for (slot = 1; slot < PHP_AMQP_DEFAULT_MAX_CHANNELS + 1; slot++) {
+		if (connection->connection_resource->slots[slot] == 0) {
+			return slot;
+		}
 	}
 
-	return ++resource->last_channel_id;
+	return 0;
+}
+
+int register_channel(amqp_connection_object *connection, amqp_channel_object *channel, amqp_channel_t channel_id)
+{
+	assert(connection != NULL);
+	assert(channel_id > 0 && channel_id <= PHP_AMQP_DEFAULT_MAX_CHANNELS);
+
+	if (connection->connection_resource->slots[channel_id] != 0) {
+		return FAILURE;
+	}
+
+	connection->connection_resource->slots[channel_id] = channel;
+	connection->connection_resource->used_slots++;
+
+	return SUCCESS;
+}
+
+int unregister_channel(amqp_connection_object *connection, amqp_channel_t channel_id)
+{
+	assert(connection != NULL);
+	assert(connection->connection_resource != NULL);
+	assert(channel_id > 0 && channel_id <= PHP_AMQP_DEFAULT_MAX_CHANNELS);
+
+	if (connection->connection_resource->slots[channel_id] != 0) {
+		connection->connection_resource->slots[channel_id] = 0;
+		connection->connection_resource->used_slots++;
+	}
+
+	return SUCCESS;
 }
 
 void amqp_connection_dtor(void *object TSRMLS_DC)
@@ -406,11 +464,6 @@ void amqp_connection_dtor(void *object TSRMLS_DC)
 	}
 
 	assert(connection->connection_resource == NULL);
-
-	zend_hash_clean(connection->channels_hashtable);
-
-	zend_hash_destroy(connection->channels_hashtable);
-	FREE_HASHTABLE(connection->channels_hashtable);
 
 	/* Clean up all the strings */
 	if (connection->host) {
@@ -458,10 +511,6 @@ zend_object_value amqp_connection_ctor(zend_class_entry *ce TSRMLS_DC)
 #else
 	new_value.handlers = zend_get_std_object_handlers();
 #endif
-
-	ALLOC_HASHTABLE(connection->channels_hashtable);
-	zend_hash_init(connection->channels_hashtable, 0, NULL, NULL, 0);
-
 	return new_value;
 }
 
@@ -1320,9 +1369,9 @@ PHP_METHOD(amqp_connection_class, setWriteTimeout)
 }
 /* }}} */
 
-/* {{{ proto amqp::getLastChannelId()
+/* {{{ proto amqp::getUsedChannels()
 get write timeout */
-PHP_METHOD(amqp_connection_class, getLastChannelId)
+PHP_METHOD(amqp_connection_class, getUsedChannels)
 {
 	zval *id;
 	amqp_connection_object *connection;
@@ -1335,10 +1384,45 @@ PHP_METHOD(amqp_connection_class, getLastChannelId)
 	/* Get the connection object out of the store */
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
+	if (!connection->is_connected) {
+		return;
+	}
+
 	/* Copy the timeout to the amqp object */
-	RETURN_LONG(connection->connection_resource->last_channel_id);
+	RETURN_LONG(connection->connection_resource->used_slots);
 }
 /* }}} */
+
+/* {{{ proto amqp::getMaxChannelId()
+get write timeout */
+PHP_METHOD(amqp_connection_class, getMaxChannelId)
+{
+	zval *id;
+	amqp_connection_object *connection;
+
+	/* Get the timeout from the method params */
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_connection_class_entry) == FAILURE) {
+		return;
+	}
+
+	/* Get the connection object out of the store */
+	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
+
+	if (!connection->is_connected) {
+		return;
+	}
+
+	/* Copy the timeout to the amqp object */
+	RETURN_LONG(amqp_get_channel_max(connection->connection_resource->connection_state));
+}
+/* }}} */
+
+//int amqp_get_channel_max(amqp_connection_state_t state)
+//{
+//  return state->channel_max;
+//}
+
+
 
 /* {{{ proto amqp::isPersistent()
 check whether amqp connection is persistent */
