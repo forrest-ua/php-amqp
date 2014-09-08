@@ -8,7 +8,7 @@ $cnn = new AMQPConnection();
 $cnn->pconnect();
 var_dump($cnn);
 
-$cnn2 = new AMQPConnection();
+$cnn2 = new AMQPConnection(['login'=>'test', 'password'=>'test']);
 $cnn2->pconnect();
 var_dump($cnn2);
 

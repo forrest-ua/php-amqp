@@ -297,13 +297,16 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 
 	if (persistent) {
 		/* Look for an established resource */
-    	key_len = spprintf(&key, 0, "amqp_conn_res_%s_%d_%s_%s", connection->host, connection->port, connection->vhost, connection->login);
+		/* TODO: add password and hash it */
+    	key_len = spprintf(&key, 0, "amqp_conn_res_%s_%d_%s_%s_%s", connection->host, connection->port, connection->vhost, connection->login, connection->password);
 
 		if (zend_hash_find(&EG(persistent_list), key, key_len + 1, (void **)&le) == SUCCESS) {
 
 			if (Z_TYPE_P(le) != le_amqp_connection_resource_persistent) {
 				return 0;
 			}
+
+			// Check whether connection already in use
 
 			/* An entry for this connection resource already exists */
 			/* Stash the connection resource in the connection */
