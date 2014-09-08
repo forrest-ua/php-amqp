@@ -38,7 +38,7 @@ try {
 
 ?>
 --EXPECTF--
-Channel id: %d
+Channel id: 1
 Exchange declared: true
 Server channel error: 406, message: PRECONDITION_FAILED - cannot redeclare exchange 'exchange-%d.%d' in vhost '/' with different type, durable, internal or autodelete value
 Channel connected: false

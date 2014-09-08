@@ -18,7 +18,7 @@ $start = microtime(true);
 try {
 	$queue->consume('nop');
 } catch (Exception $e) {
-	echo get_class($e);
+	echo get_class($e), ': ', $e->getMessage();
 	echo PHP_EOL;
 }
 $end = microtime(true);

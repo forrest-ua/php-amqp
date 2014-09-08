@@ -842,12 +842,13 @@ PHP_METHOD(amqp_queue_class, consume)
 	zend_fcall_info fci;
 	zend_fcall_info_cache fci_cache;
 	int function_call_succeeded = 1;
-	int read;
 	amqp_table_t *arguments;
 
 	char *consumer_tag;
+
 	int consumer_tag_len = 0;
 	amqp_bytes_t consumer_tag_bytes;
+
 	long flags = INI_INT("amqp.auto_ack") ? AMQP_AUTOACK : AMQP_NOPARAM;
 
 	int call_result;
@@ -871,7 +872,7 @@ PHP_METHOD(amqp_queue_class, consume)
 	consumer_tag_bytes.bytes = (void *) consumer_tag;
 	consumer_tag_bytes.len = consumer_tag_len;
 
-	amqp_basic_consume(
+    amqp_basic_consume(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		amqp_cstring_bytes(queue->name),
@@ -884,11 +885,23 @@ PHP_METHOD(amqp_queue_class, consume)
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
+	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
+	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+		char str[256];
+		char ** pstr = (char **) &str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		return;
+	}
+
+	// TODO assign consumer tag from reply
+
 	while(1) {
 		/* Initialize the message */
 		zval *message;
 
-		amqp_rpc_reply_t res;
 		amqp_envelope_t envelope;
 
 		amqp_maybe_release_buffers(connection->connection_resource->connection_state);

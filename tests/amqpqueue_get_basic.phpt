@@ -41,7 +41,7 @@ $ex->delete();
 call #0
 object(AMQPEnvelope)#5 (18) {
   ["body"]=>
-  string(7) "message1"
+  string(8) "message1"
   ["content_type"]=>
   string(10) "plain/test"
   ["routing_key"]=>

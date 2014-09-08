@@ -101,7 +101,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 	zend_hash_index_del(connection->channels_hashtable, channel->channel_id);
 
 	if (!channel->is_connected) {
-		printf("    x not connected php_amqp_close_channel, %d\n", channel->channel_id);
+//		printf("    x not connected php_amqp_close_channel, %d\n", channel->channel_id);
 		/* Nothing to do more - channel was previously marked as closed, possibly, due to channel-level error */
 		return;
 	}
