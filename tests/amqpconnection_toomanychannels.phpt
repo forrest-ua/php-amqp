@@ -9,14 +9,14 @@ $cnn->connect();
 
 $channels = array();
 
-for ($i = 0; $i < 254; $i++) {
+for ($i = 0; $i < PHP_AMQP_MAX_CHANNELS; $i++) {
 	$channels[$i] = new AMQPChannel($cnn);
 }
 
 echo "Good\n";
 
 try {
-	$channels[255] = new AMQPChannel($cnn);
+	new AMQPChannel($cnn);
 	echo "Bad\n";
 } catch(Exception $e) {
 	echo "Caught!";
