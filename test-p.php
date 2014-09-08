@@ -7,21 +7,24 @@ $conn = new AMQPConnection();
 //debug_zval_dump($conn);
 $conn->pconnect();
 
-var_dump($conn->getLastChannelId());
-
 $ch = new AMQPChannel($conn);
-
-//$conn->connect();
-//echo "Going to kill persistent resource", PHP_EOL;
-//$conn->pdisconnect();
-//echo "Persistent resource should be killed", PHP_EOL;
+var_dump($conn);
 
 
-
-$conn = null;
+$conn2 = new AMQPConnection();
+$conn2->connect();
+var_dump($conn2);
 
 $ch=null;
+$conn=null;
+$conn2= null;
 
+$conn3 = new AMQPConnection();
+
+//debug_zval_dump($conn);
+$conn3->pconnect();
+
+var_dump($conn3);
 
 //var_dump(memory_get_usage(true), memory_get_usage());
 
