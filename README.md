@@ -17,6 +17,16 @@ Object-oriented PHP bindings for the AMQP C library (https://github.com/alanxz/r
 
 [stub files](https://github.com/pdezwart/php-amqp/tree/master/stubs) with accurate PHPDoc which may be also used in your IDE for code completion, navigation and documentation in-place.
 
+#### Persistent connection
+
+  Limitations:
+
+  - there are may be only one persistent connection per unique credentials (login+password+host+port+vhost).
+  If there are will be attempt to create another persistent connection with same credentials, old connection resource will be reused.
+  - channels on persistent connection are not persistent: they are destroyed between requests.
+
+  Alternatively to built-in persistent connection support [raphf](http://pecl.php.net/package/raphf) pecl extension may be used.
+
 ### How to report a problem
  
  1. First, search through the closed issues and [stackoverflow.com](stackoverflow.com).
