@@ -49,7 +49,7 @@
 #endif
 
 #include "php_amqp.h"
-#include "amqp_connection.h"
+#include "amqp_connection_resource.h"
 
 #if PHP_MAJOR_VERSION == 5 && PHP_MINOR_VERSION >= 3
 zend_object_handlers amqp_channel_object_handlers;
@@ -101,7 +101,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 	assert(connection != NULL);
 
 	/* First, remove it from active channels table to prevent recursion in case of connection error */
-	unregister_channel(connection, channel->channel_id);
+	php_amqp_connection_resource_unregister_channel(connection->connection_resource, channel->channel_id);
 
 	if (!channel->is_connected) {
 		/* Nothing to do more - channel was previously marked as closed, possibly, due to channel-level error */
@@ -110,7 +110,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 
 	channel->is_connected = '\0';
 
-	if (connection->is_connected) {
+	if (connection->connection_resource && connection->connection_resource->is_connected) {
 		assert(connection->connection_resource != NULL);
 
 		amqp_channel_close(connection->connection_resource->connection_state, channel->channel_id, AMQP_REPLY_SUCCESS);
@@ -213,7 +213,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 	AMQP_VERIFY_CONNECTION(connection, "Could not create channel.");
 
 	/* Figure out what the next available channel is on this connection */
-	channel->channel_id = get_available_channel_id(connection);
+	channel->channel_id = php_amqp_connection_resource_get_available_channel_id(connection->connection_resource);
 
 	/* Check that we got a valid channel */
 	if (!channel->channel_id) {
@@ -221,7 +221,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 		return;
 	}
 
-	if (FAILURE == register_channel(connection, channel, channel->channel_id)) {
+	if (FAILURE == php_amqp_connection_resource_register_channel(connection->connection_resource, channel, channel->channel_id)) {
 		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Failed to add channel to connection slot.", 0 TSRMLS_CC);
 	}
 

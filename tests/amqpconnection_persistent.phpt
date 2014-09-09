@@ -5,25 +5,22 @@ AMQPConnection persistent connections
 --FILE--
 <?php
 $cnn = new AMQPConnection();
+var_dump($cnn);
 $cnn->pconnect();
 var_dump($cnn);
-
-$cnn2 = new AMQPConnection(['login'=>'test', 'password'=>'test']);
-$cnn2->pconnect();
-var_dump($cnn2);
-
 $cnn->pdisconnect();
 var_dump($cnn);
-var_dump($cnn2);
 
-$cnn2->pdisconnect();
-var_dump($cnn2);
+
+$cnn = new AMQPConnection();
+var_dump($cnn);
+$cnn->pconnect();
+var_dump($cnn);
+$cnn->pdisconnect();
 var_dump($cnn);
 
-$cnn = null;
-$cnn2 = null;
 
-echo 'DONE';
+echo 'DONE', PHP_EOL;
 
 ?>
 --EXPECT--

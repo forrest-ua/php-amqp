@@ -165,7 +165,7 @@ extern zend_class_entry *amqp_exception_class_entry,
 	*amqp_exchange_exception_class_entry,
 	*amqp_queue_exception_class_entry;
 
-#define AMQP_HEARTBEAT						0	   		/* heartbeat */
+#define PHP_AMQP_HEARTBEAT					0	   		/* heartbeat */
 
 #define DEFAULT_PORT						"5672"		/* default AMQP port */
 #define DEFAULT_HOST						"localhost"
@@ -179,6 +179,9 @@ extern zend_class_entry *amqp_exception_class_entry,
 #define DEFAULT_AUTOACK						"0"			/* These are all strings to facilitate setting default ini values */
 #define DEFAULT_PREFETCH_COUNT				"3"
 
+/* Usually, default is 0 which means 65535, but underlying rabbitmq-c library pool allocates minimal pool for each channel,
+ * so it takes a lot of memory to keep all that channels. Even after channel closing that buffer still keep memory allocation.
+ */
 /* #define DEFAULT_CHANNELS_PER_CONNECTION AMQP_DEFAULT_MAX_CHANNELS */
 #define PHP_AMQP_DEFAULT_MAX_CHANNELS 256
 
@@ -307,8 +310,9 @@ typedef struct _amqp_channel_object {
 } amqp_channel_object;
 
 typedef struct _amqp_connection_resource {
-	char is_connected;
+	zend_bool is_connected;
 	int resource_id;
+	uint in_use;
 	amqp_channel_t used_slots;
     amqp_channel_object **slots;
 	int is_persistent;

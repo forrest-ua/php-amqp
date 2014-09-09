@@ -49,6 +49,8 @@
 #include "amqp_queue.h"
 #include "amqp_exchange.h"
 #include "amqp_envelope.h"
+#include "amqp_connection_resource.h"
+
 
 #ifdef PHP_WIN32
 # include "win32/unistd.h"
@@ -69,8 +71,6 @@ zend_class_entry *amqp_exception_class_entry,
 				 *amqp_queue_exception_class_entry,
 				 *amqp_exchange_exception_class_entry;
 
-int le_amqp_connection_resource;
-int le_amqp_connection_resource_persistent;
 
 /* The last parameter of ZEND_BEGIN_ARG_INFO_EX indicates how many of the method flags are required. */
 /* The first parameter of ZEND_ARG_INFO indicates whether the variable is being passed by reference */
@@ -626,98 +626,37 @@ zend_module_entry amqp_module_entry = {
 	ZEND_GET_MODULE(amqp)
 #endif
 
-
 void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC)
 {
-	/* Trim new lines */
-	switch (x.reply_type) {
-		case AMQP_RESPONSE_NORMAL:
+	assert(connection != NULL);
+	assert(connection->connection_resource != NULL);
+
+	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource->connection_state, channel ? channel->channel_id : 0)) {
+		case PHP_AMQP_RESOURCE_RESPONSE_OK:
 			return;
+		case PHP_AMQP_RESOURCE_RESPONSE_ERROR:
+			/* Library or other non-protocol or even protocol related errors may be here, do nothing with this for now. */
+			return;
+		case PHP_AMQP_RESOURCE_RESPONSE_ERROR_CHANNEL_CLOSED:
+			/* Mark channel as closed to prevent sending channel.close request */
+			channel->is_connected = '\0';
 
-		case AMQP_RESPONSE_NONE:
-			spprintf(pstr, 0, "Missing RPC reply type.");
-			break;
+			/* Close channel */
+			php_amqp_close_channel(channel TSRMLS_CC);
 
-		case AMQP_RESPONSE_LIBRARY_EXCEPTION:
-			spprintf(pstr, 0, "Library error: %s", amqp_error_string2(x.library_error));
-			break;
+			/* No more error handling necessary, returning. */
+			return;
+		case PHP_AMQP_RESOURCE_RESPONSE_ERROR_CONNECTION_CLOSED:
+			/* Mark connection as closed to prevent sending any further requests */
+			connection->is_connected = '\0';
 
-		case AMQP_RESPONSE_SERVER_EXCEPTION:
-			switch (x.reply.id) {
-				case AMQP_CONNECTION_CLOSE_METHOD: {
-					amqp_connection_close_t *m = (amqp_connection_close_t *)x.reply.decoded;
-					spprintf(pstr, 0, "Server connection error: %d, message: %.*s",
-						m->reply_code,
-						(int) m->reply_text.len,
-						(char *)m->reply_text.bytes);
+			/* Close connection with all its channels */
+			php_amqp_force_disconnect(connection TSRMLS_CC);
 
-					/*
-					 *    - If r.reply.id == AMQP_CONNECTION_CLOSE_METHOD a connection exception
-					 *      occurred, cast r.reply.decoded to amqp_connection_close_t* to see
-					 *      details of the exception. The client amqp_send_method() a
-					 *      amqp_connection_close_ok_t and disconnect from the broker.
-					 */
-
-					amqp_connection_close_ok_t *decoded = (amqp_connection_close_ok_t *) NULL;
-
-					amqp_send_method(
-						connection->connection_resource->connection_state,
-						0, /* NOTE: 0-channel is reserved for things like this */
-						AMQP_CONNECTION_CLOSE_OK_METHOD,
-						&decoded
-					);
-
-					/* Mark connection as closed to prevent sending any further requests */
-					connection->is_connected = '\0';
-					/* Prevent finishing AMQP connection in connection resource destructor */
-					connection->connection_resource->is_connected = '\0';
-
-					/* Close connection with all its channels */
-					php_amqp_disconnect(connection TSRMLS_CC);
-
-					/* No more error handling necessary, returning. */
-					return;
-				}
-				case AMQP_CHANNEL_CLOSE_METHOD: {
-					amqp_channel_close_t *m = (amqp_channel_close_t *) x.reply.decoded;
-
-					spprintf(pstr, 0, "Server channel error: %d, message: %.*s",
-						m->reply_code,
-						(int)m->reply_text.len,
-						(char *)m->reply_text.bytes);
-
-					/*
-					 *    - If r.reply.id == AMQP_CHANNEL_CLOSE_METHOD a channel exception
-					 *      occurred, cast r.reply.decoded to amqp_channel_close_t* to see details
-					 *      of the exception. The client should amqp_send_method() a
-					 *      amqp_channel_close_ok_t. The channel must be re-opened before it
-					 *      can be used again. Any resources associated with the channel
-					 *      (auto-delete exchanges, auto-delete queues, consumers) are invalid
-					 *      and must be recreated before attempting to use them again.
-					 */
-
-					amqp_channel_close_ok_t *decoded = (amqp_channel_close_ok_t *) NULL;
-
-					amqp_send_method(
-						connection->connection_resource->connection_state,
-						channel->channel_id, /* NOTE: currently we do not handle channels properly, so we may accidentally close wrong channel */
-						AMQP_CHANNEL_CLOSE_OK_METHOD,
-						&decoded
-					);
-
-					/* Mark channel as closed to prevent sending channel.close request */
-					channel->is_connected = '\0';
-
-					/* Close channel */
-					php_amqp_close_channel(channel TSRMLS_CC);
-
-					/* No more error handling necessary, returning. */
-					return;
-				}
-			}
-		/* Default for the above switch should be handled by the below default. */
+			/* No more error handling necessary, returning. */
+			return;
 		default:
-			spprintf(pstr, 0, "Unknown server error, method id 0x%08X",	x.reply.id);
+			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
 			break;
 	}
 }
@@ -836,69 +775,6 @@ PHP_INI_BEGIN()
 	PHP_INI_ENTRY("amqp.auto_ack",			DEFAULT_AUTOACK,			PHP_INI_ALL, NULL)
 	PHP_INI_ENTRY("amqp.prefetch_count",	DEFAULT_PREFETCH_COUNT,		PHP_INI_ALL, NULL)
 PHP_INI_END()
-
-
-static void connection_resource_destructor(zend_rsrc_list_entry *rsrc, int persistent TSRMLS_DC)
-{
-	zend_rsrc_list_entry *le;
-#ifndef PHP_WIN32
-	void * old_handler;
-
-	/*
-	If we are trying to close the connection and the connection already closed, it will throw
-	SIGPIPE, which is fine, so ignore all SIGPIPES
-	*/
-
-	/* Start ignoring SIGPIPE */
-	old_handler = signal(SIGPIPE, SIG_IGN);
-#endif
-
-	amqp_connection_resource *resource = (amqp_connection_resource *)rsrc->ptr;
-
-	/* connection may be closed in case of previous failure */
-	if (resource->is_connected) {
-		amqp_connection_close(resource->connection_state, AMQP_REPLY_SUCCESS);
-	}
-
-	amqp_destroy_connection(resource->connection_state);
-
-#ifndef PHP_WIN32
-	/* End ignoring of SIGPIPEs */
-	signal(SIGPIPE, old_handler);
-#endif
-
-	/* Useless, while we free memory here and NULL'ed resource pointer when remove resource from resources list manually later */
-	/* resource->last_channel_id = 0; */
-	/* resource->resource_id     = 0; */
-
-	if (resource->resource_key_len) {
-
-//		if (persistent && zend_hash_find(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1, (void **)&le) == SUCCESS) {
-//			/* Make sure noting changed in persistence list */
-//			if (le->ptr == rsrc->ptr) {
-//				zend_hash_del(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1);
-//			} else {
-//				printf("CHANGED\n");
-//			}
-//		}
-
-		pefree(resource->resource_key, persistent);
-	}
-
-	pefree(resource->slots, persistent);
-	pefree(resource, persistent);
-}
-
-static void amqp_connection_resource_dtor_persistent(zend_rsrc_list_entry *rsrc TSRMLS_DC)
-{
-	connection_resource_destructor(rsrc, 1 TSRMLS_CC);
-}
-
-static void amqp_connection_resource_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
-{
-	connection_resource_destructor(rsrc, 0 TSRMLS_CC);
-}
-
 
 /* {{{ PHP_MINIT_FUNCTION
 */

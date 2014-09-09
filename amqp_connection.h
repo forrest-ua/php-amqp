@@ -29,10 +29,8 @@ zend_object_value amqp_connection_ctor(zend_class_entry *ce TSRMLS_DC);
 
 void php_amqp_connect(amqp_connection_object *amqp_connection, int persistent TSRMLS_DC);
 void php_amqp_disconnect(amqp_connection_object *amqp_connection TSRMLS_DC);
+void php_amqp_force_disconnect(amqp_connection_object *connection TSRMLS_DC);
 
-amqp_channel_t get_available_channel_id(amqp_connection_object *connection);
-int unregister_channel(amqp_connection_object *connection, amqp_channel_t channel_id);
-int register_channel(amqp_connection_object *connection, amqp_channel_object *channel, amqp_channel_t channel_id);
 
 
 
