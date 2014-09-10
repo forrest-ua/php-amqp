@@ -315,7 +315,6 @@ typedef struct _amqp_connection_resource {
 	uint in_use;
 	amqp_channel_t used_slots;
     amqp_channel_object **slots;
-	int is_persistent;
 	char *resource_key;
 	int resource_key_len;
 	amqp_connection_state_t connection_state;
@@ -325,6 +324,7 @@ typedef struct _amqp_connection_resource {
 typedef struct _amqp_connection_object {
 	zend_object zo;
 	char is_connected;
+	char is_persistent;
 	char *login;
 	int login_len;
 	char *password;

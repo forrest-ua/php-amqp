@@ -631,7 +631,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 	assert(connection != NULL);
 	assert(connection->connection_resource != NULL);
 
-	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource->connection_state, channel ? channel->channel_id : 0)) {
+	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource, channel ? channel->channel_id : 0)) {
 		case PHP_AMQP_RESOURCE_RESPONSE_OK:
 			return;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR:
@@ -639,6 +639,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 			return;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR_CHANNEL_CLOSED:
 			/* Mark channel as closed to prevent sending channel.close request */
+			assert(channel != NULL);
 			channel->is_connected = '\0';
 
 			/* Close channel */

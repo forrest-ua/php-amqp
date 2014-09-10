@@ -5,24 +5,23 @@ AMQPConnection persistent connections
 --FILE--
 <?php
 $cnn = new AMQPConnection();
-//var_dump($cnn);
+var_dump($cnn);
 $cnn->pconnect();
-echo "Persistent #1 connected", PHP_EOL;
-//var_dump($cnn);
-//$cnn->pdisconnect();
-//var_dump($cnn);
-
+var_dump($cnn);
+$cnn->pdisconnect();
+var_dump($cnn);
+$cnn = null;
 echo PHP_EOL, PHP_EOL;
 
-echo "Going to work with res #2";
+echo "Going to work with res #2", PHP_EOL;
 
 $cnn2 = new AMQPConnection();
-//var_dump($cnn);
+var_dump($cnn2);
 $cnn2->pconnect();
-//var_dump($cnn);
+var_dump($cnn2);
 echo "Persistent #2 connected", PHP_EOL;
-//$cnn->pdisconnect();
-//var_dump($cnn);
+$cnn2->pdisconnect();
+var_dump($cnn2);
 
 
 echo 'DONE', PHP_EOL;
