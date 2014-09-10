@@ -651,7 +651,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 			connection->is_connected = '\0';
 
 			/* Close connection with all its channels */
-			php_amqp_force_disconnect(connection TSRMLS_CC);
+			php_amqp_disconnect_force(connection TSRMLS_CC);
 
 			/* No more error handling necessary, returning. */
 			return;

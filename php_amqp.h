@@ -183,10 +183,10 @@ extern zend_class_entry *amqp_exception_class_entry,
  * so it takes a lot of memory to keep all that channels. Even after channel closing that buffer still keep memory allocation.
  */
 /* #define DEFAULT_CHANNELS_PER_CONNECTION AMQP_DEFAULT_MAX_CHANNELS */
-#define PHP_AMQP_DEFAULT_MAX_CHANNELS 256
+#define PHP_AMQP_PROTOCOL_MAX_CHANNELS 256
 
-#if PHP_AMQP_DEFAULT_MAX_CHANNELS > 0
-	#define PHP_AMQP_MAX_CHANNELS PHP_AMQP_DEFAULT_MAX_CHANNELS
+#if PHP_AMQP_PROTOCOL_MAX_CHANNELS > 0
+	#define PHP_AMQP_MAX_CHANNELS PHP_AMQP_PROTOCOL_MAX_CHANNELS
 #else
 	#define PHP_AMQP_MAX_CHANNELS 65535 // Note that the maximum number of channels the protocol supports is 65535 (2^16, with the 0-channel reserved)
 #endif

@@ -43,11 +43,6 @@ amqp_channel_t php_amqp_connection_resource_get_available_channel_id(amqp_connec
 int php_amqp_connection_resource_unregister_channel(amqp_connection_resource *resource, amqp_channel_t channel_id);
 int php_amqp_connection_resource_register_channel(amqp_connection_resource *resource, amqp_channel_object *channel, amqp_channel_t channel_id);
 
-/* Locking resource to prevent acidendal persistent resource sharing */
-inline uint php_amqp_connection_resource_in_use(amqp_connection_resource *resource);
-inline uint php_amqp_connection_resource_lock(amqp_connection_resource *resource);
-inline uint php_amqp_connection_resource_release(amqp_connection_resource *resource);
-
 /* Creating and destroying resource */
 amqp_connection_resource *connection_resource_constructor(amqp_connection_object *connection, zend_bool persistent TSRMLS_DC);
 ZEND_RSRC_DTOR_FUNC(amqp_connection_resource_dtor_persistent);

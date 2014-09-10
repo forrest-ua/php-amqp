@@ -108,7 +108,7 @@ int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_con
 					return PHP_AMQP_RESOURCE_RESPONSE_ERROR_CONNECTION_CLOSED;
 				}
 				case AMQP_CHANNEL_CLOSE_METHOD: {
-					assert(channel_id > 0 && channel_id <= PHP_AMQP_DEFAULT_MAX_CHANNELS);
+					assert(channel_id > 0 && channel_id <= PHP_AMQP_MAX_CHANNELS);
 
 					amqp_channel_close_t *m = (amqp_channel_close_t *) x.reply.decoded;
 
@@ -212,13 +212,13 @@ amqp_channel_t php_amqp_connection_resource_get_available_channel_id(amqp_connec
 	assert(resource->slots != NULL);
 
 	/* Check if there are any open slots */
-	if (resource->used_slots >= PHP_AMQP_DEFAULT_MAX_CHANNELS + 1) {
+	if (resource->used_slots >= PHP_AMQP_MAX_CHANNELS + 1) {
     	return 0;
     }
 
 	amqp_channel_t slot;
 
-	for (slot = 1; slot < PHP_AMQP_DEFAULT_MAX_CHANNELS + 1; slot++) {
+	for (slot = 1; slot < PHP_AMQP_MAX_CHANNELS + 1; slot++) {
 		if (resource->slots[slot] == 0) {
 			return slot;
 		}
@@ -231,7 +231,7 @@ int php_amqp_connection_resource_register_channel(amqp_connection_resource *reso
 {
 	assert(resource != NULL);
 	assert(resource->slots != NULL);
-	assert(channel_id > 0 && channel_id <= PHP_AMQP_DEFAULT_MAX_CHANNELS);
+	assert(channel_id > 0 && channel_id <= PHP_AMQP_MAX_CHANNELS);
 
 	if (resource->slots[channel_id] != 0) {
 		return FAILURE;
@@ -247,7 +247,7 @@ int php_amqp_connection_resource_unregister_channel(amqp_connection_resource *re
 {
 	assert(resource != NULL);
 	assert(resource->slots != NULL);
-	assert(channel_id > 0 && channel_id <= PHP_AMQP_DEFAULT_MAX_CHANNELS);
+	assert(channel_id > 0 && channel_id <= PHP_AMQP_MAX_CHANNELS);
 
 	if (resource->slots[channel_id] != 0) {
 		resource->slots[channel_id] = 0;
@@ -257,24 +257,6 @@ int php_amqp_connection_resource_unregister_channel(amqp_connection_resource *re
 	return SUCCESS;
 }
 
-
-/* Locking resource to prevent acidendal persistent resource sharing */
-
-inline uint php_amqp_connection_resource_in_use(amqp_connection_resource *resource)
-{
-	return resource->in_use;
-}
-
-inline uint php_amqp_connection_resource_lock(amqp_connection_resource *resource)
-{
-	return ++resource->in_use;
-}
-
-inline uint php_amqp_connection_resource_release(amqp_connection_resource *resource)
-{
-	assert(resource->in_use > 0);
-	return --resource->in_use;
-}
 
 /* Creating and destroying resource */
 
@@ -290,16 +272,13 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	memset(resource, 0, sizeof(amqp_connection_resource));
 
 	/* Allocate space for the channel slots in the ring buffer */
-	resource->slots = (amqp_channel_object **)pecalloc(PHP_AMQP_DEFAULT_MAX_CHANNELS + 1, sizeof(amqp_channel_object*), persistent);
+	resource->slots = (amqp_channel_object **)pecalloc(PHP_AMQP_MAX_CHANNELS + 1, sizeof(amqp_channel_object*), persistent);
 	memset(resource->slots, 0, sizeof(amqp_channel_object*));
 
 	/* Initialize all the data */
 	resource->is_connected  = 0;
 	resource->used_slots    = 0;
-	resource->is_persistent = persistent;
-
-	/* Register resource */
-	resource->resource_id  = ZEND_REGISTER_RESOURCE(NULL, resource, persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource);
+	resource->resource_id   = 0;
 
 	/* Create the connection */
 	resource->connection_state = amqp_new_connection();
@@ -336,10 +315,10 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	/* Assume we established connection here (but it is not true, real handshake goes during login) */
 	resource->is_connected = '\1';
 
-    amqp_table_entry_t client_properties_entries[4];
+    amqp_table_entry_t client_properties_entries[5];
     amqp_table_t       client_properties_table;
 
-	client_properties_entries[0].key 			   = amqp_cstring_bytes("client");
+	client_properties_entries[0].key 			   = amqp_cstring_bytes("client type");
 	client_properties_entries[0].value.kind        = AMQP_FIELD_KIND_UTF8;
 	client_properties_entries[0].value.value.bytes = amqp_cstring_bytes("php-amqp extension");
 
@@ -355,13 +334,17 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	client_properties_entries[3].value.kind        = AMQP_FIELD_KIND_UTF8;
 	client_properties_entries[3].value.value.bytes = amqp_cstring_bytes(PHP_AMQP_REVISION);
 
+	client_properties_entries[4].key 			   = amqp_cstring_bytes("client connection");
+	client_properties_entries[4].value.kind        = AMQP_FIELD_KIND_UTF8;
+	client_properties_entries[4].value.value.bytes = amqp_cstring_bytes(persistent ? "persistent" : "transient");
+
     client_properties_table.entries = client_properties_entries;
     client_properties_table.num_entries = sizeof(client_properties_entries) / sizeof(amqp_table_entry_t);
 
 	amqp_rpc_reply_t res = amqp_login_with_properties(
 		resource->connection_state,
 		connection->vhost,
-		PHP_AMQP_DEFAULT_MAX_CHANNELS,
+		PHP_AMQP_PROTOCOL_MAX_CHANNELS,
 		AMQP_DEFAULT_FRAME_SIZE,
 		PHP_AMQP_HEARTBEAT,
 		&client_properties_table,
@@ -428,19 +411,7 @@ static void connection_resource_destructor(amqp_connection_resource *resource, i
 	signal(SIGPIPE, old_handler);
 #endif
 
-	printf("Persistent dtor called\n");
 	if (resource->resource_key_len) {
-
-		if (persistent && zend_hash_find(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1, (void **)&le) == SUCCESS) {
-			/* Make sure noting changed in persistence list */
-			if (le->ptr == resource) {
-				zend_hash_del(&EG(persistent_list), resource->resource_key, resource->resource_key_len + 1);
-				printf("DELETED\n");
-			} else {
-				printf("CHANGED\n");
-			}
-		}
-
 		pefree(resource->resource_key, persistent);
 	}
 

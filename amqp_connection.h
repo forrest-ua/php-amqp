@@ -28,8 +28,8 @@ void amqp_connection_dtor(void *object TSRMLS_DC);
 zend_object_value amqp_connection_ctor(zend_class_entry *ce TSRMLS_DC);
 
 void php_amqp_connect(amqp_connection_object *amqp_connection, int persistent TSRMLS_DC);
-void php_amqp_disconnect(amqp_connection_object *amqp_connection TSRMLS_DC);
-void php_amqp_force_disconnect(amqp_connection_object *connection TSRMLS_DC);
+void php_amqp_disconnect_force(amqp_connection_object *connection TSRMLS_DC);
+void php_amqp_disconnect_safe(amqp_connection_object *connection TSRMLS_DC);
 
 
 
