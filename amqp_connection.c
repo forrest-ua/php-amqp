@@ -211,7 +211,6 @@ void php_amqp_disconnect_force(amqp_connection_object *connection TSRMLS_DC)
 
 		if (connection->connection_resource->resource_id > 0) {
 			zend_list_delete(connection->connection_resource->resource_id);
-			connection->connection_resource->resource_id = 0;
 		}
 
 		if (connection->is_persistent) {
