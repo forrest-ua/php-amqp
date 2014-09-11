@@ -198,7 +198,6 @@ PHP_METHOD(amqp_exchange_class, __construct)
 
 	/* Pull the channel out */
 	channel = AMQP_GET_CHANNEL(exchange);
-
 	AMQP_VERIFY_CHANNEL(channel, "Could not create exchange.");
 
 	/* We have a valid connection: */

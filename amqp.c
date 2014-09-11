@@ -676,10 +676,12 @@ void amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_c
 		case AMQP_RESPONSE_SERVER_EXCEPTION:
 			switch (x.reply.id) {
 				case AMQP_CONNECTION_CLOSE_METHOD:
+					/* Fatal errors - pass them to connection level */
 					exception_ce = amqp_connection_exception_class_entry;
 					break;
 				case AMQP_CHANNEL_CLOSE_METHOD:
-					exception_ce = amqp_channel_exception_class_entry;
+					/* Most channel-level errors occurs due to previously known action and thus their kind can be predicted. */
+					/* exception_ce = amqp_channel_exception_class_entry; */
 					break;
 			}
 			break;
