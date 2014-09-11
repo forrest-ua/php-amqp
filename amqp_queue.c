@@ -891,6 +891,16 @@ PHP_METHOD(amqp_queue_class, consume)
 
 	// TODO assign consumer tag from reply
 
+	struct timeval tv = {0};
+	struct timeval *tv_ptr = &tv;
+
+	if (connection->read_timeout > 0) {
+		tv.tv_sec = (long int) connection->read_timeout;
+		tv.tv_usec = (long int) ((connection->read_timeout - tv.tv_sec) * 1000000);
+	} else {
+		tv_ptr = NULL;
+	}
+
 	while(1) {
 		/* Initialize the message */
 		zval *message;
@@ -899,7 +909,16 @@ PHP_METHOD(amqp_queue_class, consume)
 
 		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
-		res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, NULL, 0);
+		res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, tv_ptr, 0);
+
+		if (AMQP_RESPONSE_LIBRARY_EXCEPTION == res.reply_type && AMQP_STATUS_TIMEOUT) {
+			char str[256];
+			char ** pstr = (char **) &str;
+
+			zend_throw_exception(amqp_queue_exception_class_entry, "Consumer timeout exceed", 0 TSRMLS_CC);
+			amqp_destroy_envelope(&envelope);
+			return;
+		}
 
 		if (AMQP_RESPONSE_NORMAL != res.reply_type) {
 			char str[256];

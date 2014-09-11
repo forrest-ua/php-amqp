@@ -657,7 +657,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 			/* No more error handling necessary, returning. */
 			return;
 		default:
-//			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
+			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
 			break;
 	}
 }
