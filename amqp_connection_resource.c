@@ -297,9 +297,10 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	/* Try to connect and verify that no error occurred */
 	if (amqp_socket_open_noblock(resource->socket, connection->host, connection->port, tv_ptr)) {
 
+		zend_throw_exception(amqp_connection_exception_class_entry, "Socket error: could not connect to host.", 0 TSRMLS_CC);
+
 		connection_resource_destructor(resource, persistent TSRMLS_CC);
 
-		zend_throw_exception(amqp_connection_exception_class_entry, "Socket error: could not connect to host.", 0 TSRMLS_CC);
 		return NULL;
 	}
 
@@ -371,12 +372,13 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
     	char ** pstr = (char **) &str;
-		php_amqp_connection_resource_error(res, pstr, resource, 0 TSRMLS_CC);
 
-		connection_resource_destructor(resource, persistent TSRMLS_CC);
+		php_amqp_connection_resource_error(res, pstr, resource, 0 TSRMLS_CC);
 
 		strcat(*pstr, " - Potential login failure.");
 		zend_throw_exception(amqp_connection_exception_class_entry, *pstr, 0 TSRMLS_CC);
+
+		connection_resource_destructor(resource, persistent TSRMLS_CC);
 		return NULL;
 	}
 
@@ -426,9 +428,9 @@ static void connection_resource_destructor(amqp_connection_resource *resource, i
 	signal(SIGPIPE, old_handler);
 #endif
 
-	if (resource->resource_key_len) {
-		pefree(resource->resource_key, persistent);
-	}
+//	if (resource->resource_key_len) {
+//		pefree(resource->resource_key, persistent);
+//	}
 
 	pefree(resource->slots, persistent);
 	pefree(resource, persistent);

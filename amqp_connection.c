@@ -111,14 +111,12 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	zend_hash_add(debug_info, "is_connected", sizeof("is_connected"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-
 	if (connection && connection->connection_resource) {
 		Z_ADDREF_P(value);
 		ZVAL_RESOURCE(value, connection->connection_resource->resource_id);
 	} else {
 		ZVAL_NULL(value);
 	}
-
 	zend_hash_add(debug_info, "connection_resource", sizeof("connection_resource"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
@@ -126,13 +124,11 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	zend_hash_add(debug_info, "is_persistent", sizeof("is_persistent"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-
 	if (connection->connection_resource) {
 		ZVAL_LONG(value, connection->connection_resource->used_slots);
 	} else {
 		ZVAL_NULL(value);
 	}
-
 	zend_hash_add(debug_info, "used_channels", sizeof("used_channels"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
@@ -141,7 +137,6 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	} else {
 		ZVAL_NULL(value);
 	}
-
 	zend_hash_add(debug_info, "max_channel_id", sizeof("max_channel_id"), &value, sizeof(zval *), NULL);
 
 	/* Start adding values */
@@ -244,13 +239,10 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 	assert(connection->connection_resource == NULL);
 	assert(!connection->is_connected);
 
-	// TODO: it might be good idea to limit this value to some constant
-	int concurrent_persistent_connections = 0;
-
 	if (persistent) {
 		zend_rsrc_list_entry *le;
 		/* Look for an established resource */
-    	key_len = spprintf(&key, 0, "amqp_conn_res_#%d_%s_%d_%s_%s_%s", concurrent_persistent_connections, connection->host, connection->port, connection->vhost, connection->login, connection->password);
+    	key_len = spprintf(&key, 0, "amqp_conn_res_%s_%d_%s_%s_%s", connection->host, connection->port, connection->vhost, connection->login, connection->password);
 
 		if (zend_hash_find(&EG(persistent_list), key, key_len + 1, (void **)&le) == SUCCESS) {
 			efree(key);
@@ -298,11 +290,11 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 
 		connection->is_persistent = persistent;
 
-    	key_len = spprintf(&key, 0, "amqp_conn_res_#%d_%s_%d_%s_%s_%s", concurrent_persistent_connections, connection->host, connection->port, connection->vhost, connection->login, connection->password);
+    	key_len = spprintf(&key, 0, "amqp_conn_res_%s_%d_%s_%s_%s", connection->host, connection->port, connection->vhost, connection->login, connection->password);
 
 		connection->connection_resource->resource_key     = pestrndup(key, key_len, persistent);
 		connection->connection_resource->resource_key_len = key_len;
-		
+
 		efree(key);
 
 		/* Store a reference in the persistence list */

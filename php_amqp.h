@@ -266,7 +266,7 @@ extern zend_class_entry *amqp_exception_class_entry,
 
 #define AMQP_VERIFY_CHANNEL_ERROR(error, reason) \
 		char verify_channel_error_tmp[255]; \
-		snprintf(verify_channel_error_tmp, 255, "%s %s", error, reason); \
+//		snprintf(verify_channel_error_tmp, 255, "%s %s", error, reason); \
 		zend_throw_exception(amqp_channel_exception_class_entry, verify_channel_error_tmp, 0 TSRMLS_CC); \
 		return; \
 
@@ -280,7 +280,7 @@ extern zend_class_entry *amqp_exception_class_entry,
 
 #define AMQP_VERIFY_CONNECTION_ERROR(error, reason) \
 		char verify_connection_error_tmp[255]; \
-		snprintf(verify_connection_error_tmp, 255, "%s %s", error, reason); \
+//		snprintf(verify_connection_error_tmp, 255, "%s %s", error, reason); \
 		zend_throw_exception(amqp_connection_exception_class_entry, verify_connection_error_tmp, 0 TSRMLS_CC); \
 		return; \
 
@@ -429,6 +429,7 @@ typedef struct _amqp_envelope_object {
 #endif
 
 void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC);
+void amqp_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC);
 
 #endif	/* PHP_AMQP_H */
 

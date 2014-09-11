@@ -2,23 +2,11 @@
 $cnn = new AMQPConnection();
 $cnn->connect();
 
-var_dump($cnn);die;
-//for ($i = 0; $i < PHP_AMQP_MAX_CHANNELS; $i++) {
-//for ($i = 0; $i < 1000; $i++) {
-    $channel = new AMQPChannel($cnn);
-    //echo $channel->getChannelId(), PHP_EOL;
-    echo 'destroy channel', PHP_EOL;
-    $channel = null;
-//}
+$ch = new AMQPChannel($cnn);
 
+$e = new AMQPExchange($ch);
 
-echo "Good\n";
+$e->publish('test', 'test');
 
-try {
-    new AMQPChannel($cnn);
-    echo "Bad\n";
-} catch(Exception $e) {
-    echo get_class($e), ': ', $e->getMessage(), PHP_EOL;
-}
-
-echo "DONE", PHP_EOL;
+var_dump($cnn);
+var_dump($ch);

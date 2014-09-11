@@ -657,10 +657,41 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 			/* No more error handling necessary, returning. */
 			return;
 		default:
-			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
+//			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
 			break;
 	}
 }
+
+void amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC)
+{
+	switch (x.reply_type) {
+		case AMQP_RESPONSE_NORMAL:
+			break;
+		case AMQP_RESPONSE_NONE:
+			exception_ce = amqp_exception_class_entry;
+			break;
+		case AMQP_RESPONSE_LIBRARY_EXCEPTION:
+			exception_ce = amqp_exception_class_entry;
+			break;
+		case AMQP_RESPONSE_SERVER_EXCEPTION:
+			switch (x.reply.id) {
+				case AMQP_CONNECTION_CLOSE_METHOD:
+					exception_ce = amqp_connection_exception_class_entry;
+					break;
+				case AMQP_CHANNEL_CLOSE_METHOD:
+					exception_ce = amqp_channel_exception_class_entry;
+					break;
+			}
+			break;
+		/* Default for the above switch should be handled by the below default. */
+		default:
+			exception_ce = amqp_exception_class_entry;
+			break;
+	}
+
+	zend_throw_exception(exception_ce, message, code TSRMLS_CC);
+}
+
 
 char *stringify_bytes(amqp_bytes_t bytes)
 {

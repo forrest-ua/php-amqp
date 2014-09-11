@@ -84,6 +84,10 @@ HashTable *amqp_exchange_object_get_debug_info(zval *object, int *is_temp TSRMLS
 	ZVAL_LONG(value, IS_DURABLE(exchange->flags));
 	zend_hash_add(debug_info, "durable", sizeof("durable"), &value, sizeof(zval *), NULL);
 
+	MAKE_STD_ZVAL(value);
+	ZVAL_LONG(value, IS_AUTODELETE(exchange->flags));
+	zend_hash_add(debug_info, "auto_delete", sizeof("auto_delete"), &value, sizeof(zval *), NULL);
+
 	Z_ADDREF_P(exchange->arguments);
 	zend_hash_add(debug_info, "arguments", sizeof("arguments"), &exchange->arguments, sizeof(&exchange->arguments), NULL);
 
@@ -514,8 +518,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
-//		efree(*pstr);
+		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -567,7 +570,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -612,6 +615,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 
 	exchange = (amqp_exchange_object *)zend_object_store_get_object(id TSRMLS_CC);
 
+	// TODO: looks like dead code. Review.
 	if (exchange->name_len < 0) {
 		zend_throw_exception(amqp_exchange_exception_class_entry, "Could not publish to exchange. Exchange name not set.", 0 TSRMLS_CC);
 		return;
@@ -849,7 +853,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -913,7 +917,7 @@ PHP_METHOD(amqp_exchange_class, bind)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -976,7 +980,7 @@ PHP_METHOD(amqp_exchange_class, unbind)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 

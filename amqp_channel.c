@@ -123,7 +123,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 			char ** pstr = (char **) &str;
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
 	}
@@ -235,7 +235,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -258,7 +258,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 }
@@ -326,10 +326,6 @@ PHP_METHOD(amqp_channel_class, setPrefetchCount)
 	/* Get the channel object out of the store */
 	channel = (amqp_channel_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	/* Set the prefetch count - the implication is to disable the size */
-	channel->prefetch_count = prefetch_count;
-	channel->prefetch_size = 0;
-
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not set prefetch count.");
 
@@ -338,8 +334,8 @@ PHP_METHOD(amqp_channel_class, setPrefetchCount)
 		amqp_basic_qos(
 			connection->connection_resource->connection_state,
 			channel->channel_id,
-			channel->prefetch_size,
-			channel->prefetch_count,
+			0,
+			prefetch_count,
 			0
 		);
 
@@ -350,10 +346,14 @@ PHP_METHOD(amqp_channel_class, setPrefetchCount)
 			char ** pstr = (char **) &str;
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
 	}
+
+	/* Set the prefetch count - the implication is to disable the size */
+	channel->prefetch_count = prefetch_count;
+	channel->prefetch_size = 0;
 
 	RETURN_TRUE;
 }
@@ -393,10 +393,6 @@ PHP_METHOD(amqp_channel_class, setPrefetchSize)
 	/* Get the channel object out of the store */
 	channel = (amqp_channel_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	/* Set the prefetch size - the implication is to disable the count */
-	channel->prefetch_count = 0;
-	channel->prefetch_size = prefetch_size;
-
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not set prefetch size.");
 
@@ -405,8 +401,8 @@ PHP_METHOD(amqp_channel_class, setPrefetchSize)
 		amqp_basic_qos(
 			connection->connection_resource->connection_state,
 			channel->channel_id,
-			channel->prefetch_size,
-			channel->prefetch_count,
+			prefetch_size,
+			0,
 			0
 		);
 
@@ -417,10 +413,14 @@ PHP_METHOD(amqp_channel_class, setPrefetchSize)
 			char ** pstr = (char **) &str;
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
 	}
+
+	/* Set the prefetch size - the implication is to disable the count */
+	channel->prefetch_count = 0;
+	channel->prefetch_size = prefetch_size;
 
 	RETURN_TRUE;
 }
@@ -488,7 +488,7 @@ PHP_METHOD(amqp_channel_class, qos)
 			char ** pstr = (char **) &str;
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			zend_throw_exception(amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			return;
 		}
 	}
@@ -531,7 +531,7 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -573,7 +573,7 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -614,7 +614,7 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 

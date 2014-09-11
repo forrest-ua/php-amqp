@@ -629,7 +629,7 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -710,7 +710,7 @@ PHP_METHOD(amqp_queue_class, bind)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -765,7 +765,7 @@ PHP_METHOD(amqp_queue_class, get)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -803,7 +803,7 @@ PHP_METHOD(amqp_queue_class, get)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 
 		amqp_destroy_envelope(&envelope);
 		return;
@@ -884,8 +884,8 @@ PHP_METHOD(amqp_queue_class, consume)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 		return;
 	}
 
@@ -906,7 +906,7 @@ PHP_METHOD(amqp_queue_class, consume)
 			char ** pstr = (char **) &str;
 			amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-			zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+			amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 
 			amqp_destroy_envelope(&envelope);
 			return;
@@ -1185,7 +1185,7 @@ PHP_METHOD(amqp_queue_class, purge)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -1255,7 +1255,7 @@ PHP_METHOD(amqp_queue_class, cancel)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -1327,7 +1327,7 @@ PHP_METHOD(amqp_queue_class, unbind)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
@@ -1385,7 +1385,7 @@ PHP_METHOD(amqp_queue_class, delete)
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
 
