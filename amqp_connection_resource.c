@@ -388,7 +388,6 @@ ZEND_RSRC_DTOR_FUNC(amqp_connection_resource_dtor_persistent)
 	amqp_connection_resource *resource = (amqp_connection_resource *)rsrc->ptr;
 
 	connection_resource_destructor(resource, 1 TSRMLS_CC);
-	php_printf("Persistent resource dtor called\n");
 }
 
 ZEND_RSRC_DTOR_FUNC(amqp_connection_resource_dtor)
@@ -396,7 +395,6 @@ ZEND_RSRC_DTOR_FUNC(amqp_connection_resource_dtor)
 	amqp_connection_resource *resource = (amqp_connection_resource *)rsrc->ptr;
 
 	connection_resource_destructor(resource, 0 TSRMLS_CC);
-	php_printf("Non-persistent resource dtor called\n");
 }
 
 static void connection_resource_destructor(amqp_connection_resource *resource, int persistent TSRMLS_DC)

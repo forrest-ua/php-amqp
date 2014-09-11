@@ -322,8 +322,6 @@ void amqp_connection_dtor(void *object TSRMLS_DC)
 {
 	amqp_connection_object *connection = (amqp_connection_object*)object;
 
-	php_printf("Connection class dtor called (res %p)\n", connection->connection_resource);
-
 	php_amqp_disconnect_safe(connection TSRMLS_CC);
 
 	assert(connection->connection_resource == NULL);
@@ -657,8 +655,6 @@ PHP_METHOD(amqp_connection_class, pdisconnect)
 	}
 
 	php_amqp_disconnect_force(connection TSRMLS_CC);
-
-	php_printf("Forced to close persistent connection\n");
 
 	RETURN_TRUE;
 }
