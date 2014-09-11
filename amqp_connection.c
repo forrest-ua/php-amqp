@@ -111,6 +111,10 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	zend_hash_add(debug_info, "is_connected", sizeof("is_connected"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
+	ZVAL_BOOL(value, connection->is_persistent);
+	zend_hash_add(debug_info, "is_persistent", sizeof("is_persistent"), &value, sizeof(zval *), NULL);
+
+	MAKE_STD_ZVAL(value);
 	if (connection && connection->connection_resource) {
 		Z_ADDREF_P(value);
 		ZVAL_RESOURCE(value, connection->connection_resource->resource_id);
@@ -118,10 +122,6 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 		ZVAL_NULL(value);
 	}
 	zend_hash_add(debug_info, "connection_resource", sizeof("connection_resource"), &value, sizeof(zval *), NULL);
-
-	MAKE_STD_ZVAL(value);
-	ZVAL_BOOL(value, connection->is_persistent);
-	zend_hash_add(debug_info, "is_persistent", sizeof("is_persistent"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
 	if (connection->connection_resource) {

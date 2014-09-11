@@ -22,7 +22,7 @@ $cnn->disconnect();
 var_dump($cnn);
 ?>
 --EXPECT--
-object(AMQPConnection)#1 (12) {
+object(AMQPConnection)#1 (13) {
   ["login"]=>
   string(5) "guest"
   ["password"]=>
@@ -41,14 +41,16 @@ object(AMQPConnection)#1 (12) {
   float(0)
   ["is_connected"]=>
   bool(false)
+  ["is_persistent"]=>
+  bool(false)
   ["connection_resource"]=>
   NULL
-  ["is_persistent"]=>
+  ["used_channels"]=>
   NULL
-  ["last_channel_id"]=>
+  ["max_channel_id"]=>
   NULL
 }
-object(AMQPConnection)#1 (12) {
+object(AMQPConnection)#1 (13) {
   ["login"]=>
   string(5) "guest"
   ["password"]=>
@@ -67,14 +69,16 @@ object(AMQPConnection)#1 (12) {
   float(0)
   ["is_connected"]=>
   bool(true)
-  ["connection_resource"]=>
-  resource(4) of type (AMQP Connection Resource)
   ["is_persistent"]=>
   bool(false)
-  ["last_channel_id"]=>
+  ["connection_resource"]=>
+  resource(4) of type (AMQP Connection Resource)
+  ["used_channels"]=>
   int(0)
+  ["max_channel_id"]=>
+  int(256)
 }
-object(AMQPConnection)#1 (12) {
+object(AMQPConnection)#1 (13) {
   ["login"]=>
   string(5) "guest"
   ["password"]=>
@@ -93,14 +97,16 @@ object(AMQPConnection)#1 (12) {
   float(0)
   ["is_connected"]=>
   bool(true)
-  ["connection_resource"]=>
-  resource(4) of type (AMQP Connection Resource)
   ["is_persistent"]=>
   bool(false)
-  ["last_channel_id"]=>
+  ["connection_resource"]=>
+  resource(4) of type (AMQP Connection Resource)
+  ["used_channels"]=>
   int(1)
+  ["max_channel_id"]=>
+  int(256)
 }
-object(AMQPConnection)#1 (12) {
+object(AMQPConnection)#1 (13) {
   ["login"]=>
   string(5) "guest"
   ["password"]=>
@@ -119,10 +125,12 @@ object(AMQPConnection)#1 (12) {
   float(0)
   ["is_connected"]=>
   bool(false)
+  ["is_persistent"]=>
+  bool(false)
   ["connection_resource"]=>
   NULL
-  ["is_persistent"]=>
+  ["used_channels"]=>
   NULL
-  ["last_channel_id"]=>
+  ["max_channel_id"]=>
   NULL
 }
