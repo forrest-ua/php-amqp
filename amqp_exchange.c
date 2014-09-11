@@ -77,16 +77,12 @@ HashTable *amqp_exchange_object_get_debug_info(zval *object, int *is_temp TSRMLS
 	zend_hash_add(debug_info, "type", sizeof("type"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_LONG(value, exchange->passive);
+	ZVAL_LONG(value, IS_PASSIVE(exchange->flags));
 	zend_hash_add(debug_info, "passive", sizeof("passive"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_LONG(value, exchange->durable);
+	ZVAL_LONG(value, IS_DURABLE(exchange->flags));
 	zend_hash_add(debug_info, "durable", sizeof("durable"), &value, sizeof(zval *), NULL);
-	
-	MAKE_STD_ZVAL(value);
-	ZVAL_LONG(value, exchange->auto_delete);
-	zend_hash_add(debug_info, "auto_delete", sizeof("auto_delete"), &value, sizeof(zval *), NULL);
 
 	Z_ADDREF_P(exchange->arguments);
 	zend_hash_add(debug_info, "arguments", sizeof("arguments"), &exchange->arguments, sizeof(&exchange->arguments), NULL);
@@ -272,12 +268,7 @@ PHP_METHOD(amqp_exchange_class, getFlags)
 
 	exchange = (amqp_exchange_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	/* Set the bitmask based on what is set in the exchange */
-	flagBitmask |= (exchange->passive ? AMQP_PASSIVE : 0);
-	flagBitmask |= (exchange->durable ? AMQP_DURABLE : 0);
-	flagBitmask |= (exchange->auto_delete ? AMQP_AUTODELETE : 0);
-
-	RETURN_LONG(flagBitmask);
+	RETURN_LONG(exchange->flags);
 }
 /* }}} */
 
@@ -298,9 +289,7 @@ PHP_METHOD(amqp_exchange_class, setFlags)
 	exchange = (amqp_exchange_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	/* Set the flags based on the bitmask we were given */
-	exchange->passive = IS_PASSIVE(flagBitmask);
-	exchange->durable = IS_DURABLE(flagBitmask);
-	exchange->auto_delete = IS_AUTODELETE(flagBitmask);
+	exchange->flags = flagBitmask ? flagBitmask & PHP_AMQP_EXCHANGE_FLAGS : flagBitmask;
 }
 /* }}} */
 
@@ -510,8 +499,8 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		channel->channel_id,
 		amqp_cstring_bytes(exchange->name),
 		amqp_cstring_bytes(exchange->type),
-		exchange->passive,
-		exchange->durable,
+		IS_PASSIVE(exchange->flags),
+		IS_DURABLE(exchange->flags),
 		*arguments
 	);
 

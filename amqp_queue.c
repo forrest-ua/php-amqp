@@ -77,19 +77,19 @@ HashTable *amqp_queue_object_get_debug_info(zval *object, int *is_temp TSRMLS_DC
 	zend_hash_add(debug_info, "consumer_tag", sizeof("consumer_tag"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_BOOL(value, queue->passive);
+	ZVAL_BOOL(value, IS_PASSIVE(queue->flags));
 	zend_hash_add(debug_info, "passive", sizeof("passive"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_BOOL(value, queue->durable);
+	ZVAL_BOOL(value, IS_DURABLE(queue->flags));
 	zend_hash_add(debug_info, "durable", sizeof("durable"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_BOOL(value, queue->exclusive);
+	ZVAL_BOOL(value, IS_EXCLUSIVE(queue->flags));
 	zend_hash_add(debug_info, "exclusive", sizeof("exclusive"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
-	ZVAL_BOOL(value, queue->auto_delete);
+	ZVAL_BOOL(value, IS_AUTODELETE(queue->flags));
 	zend_hash_add(debug_info, "auto_delete", sizeof("auto_delete"), &value, sizeof(zval *), NULL);
 
 	Z_ADDREF_P(queue->arguments);
@@ -358,7 +358,7 @@ PHP_METHOD(amqp_queue_class, __construct)
 	queue->is_connected = '\1';
 
 	/* By default, the auto_delete flag should be set */
-	queue->auto_delete = 1;
+	queue->flags = AMQP_AUTODELETE;
 }
 /* }}} */
 
@@ -429,13 +429,7 @@ PHP_METHOD(amqp_queue_class, getFlags)
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
 
-	/* Set the bitmask based on what is set in the queue */
-	flagBitmask |= (queue->passive ? AMQP_PASSIVE : 0);
-	flagBitmask |= (queue->durable ? AMQP_DURABLE : 0);
-	flagBitmask |= (queue->exclusive ? AMQP_EXCLUSIVE : 0);
-	flagBitmask |= (queue->auto_delete ? AMQP_AUTODELETE : 0);
-
-	RETURN_LONG(flagBitmask);
+	RETURN_LONG(queue->flags);
 }
 /* }}} */
 
@@ -456,10 +450,7 @@ PHP_METHOD(amqp_queue_class, setFlags)
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	/* Set the flags based on the bitmask we were given */
-	queue->passive = IS_PASSIVE(flagBitmask);
-	queue->durable = IS_DURABLE(flagBitmask);
-	queue->exclusive = IS_EXCLUSIVE(flagBitmask);
-	queue->auto_delete = IS_AUTODELETE(flagBitmask);
+	queue->flags = flagBitmask ? flagBitmask & PHP_AMQP_QUEUE_FLAGS : flagBitmask;
 
 	RETURN_TRUE;
 }
@@ -621,10 +612,10 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		amqp_cstring_bytes(queue->name),
-		queue->passive,
-		queue->durable,
-		queue->exclusive,
-		queue->auto_delete,
+		IS_PASSIVE(queue->flags),
+		IS_DURABLE(queue->flags),
+		IS_EXCLUSIVE(queue->flags),
+		IS_AUTODELETE(queue->flags),
 		*arguments
 	);
 
@@ -849,6 +840,7 @@ PHP_METHOD(amqp_queue_class, consume)
 	int consumer_tag_len = 0;
 	amqp_bytes_t consumer_tag_bytes;
 
+	/* TODO: check whether this value get overridden in arguments parsing below */
 	long flags = INI_INT("amqp.auto_ack") ? AMQP_AUTOACK : AMQP_NOPARAM;
 
 	int call_result;
@@ -879,7 +871,7 @@ PHP_METHOD(amqp_queue_class, consume)
 		consumer_tag_bytes,					/* Consumer tag */
 		(AMQP_NOLOCAL & flags) ? 1 : 0, 	/* No local */
 		(AMQP_AUTOACK & flags) ? 1 : 0,		/* no_ack, aka AUTOACK */
-		queue->exclusive,
+		IS_EXCLUSIVE(queue->flags),
 		*arguments
 	);
 
@@ -892,6 +884,7 @@ PHP_METHOD(amqp_queue_class, consume)
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 		zend_throw_exception(amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		return;
 	}
@@ -904,7 +897,7 @@ PHP_METHOD(amqp_queue_class, consume)
 
 		amqp_envelope_t envelope;
 
-		amqp_maybe_release_buffers(connection->connection_resource->connection_state);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 		res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, NULL, 0);
 
@@ -961,6 +954,7 @@ PHP_METHOD(amqp_queue_class, consume)
 		}
 	}
 
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 	return;
 }
 /* }}} */

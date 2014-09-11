@@ -122,7 +122,7 @@ extern zend_module_entry amqp_module_entry;
 #endif
 
 #define AMQP_NOPARAM		0
-
+/* Where is 1?*/
 #define AMQP_DURABLE		2
 #define AMQP_PASSIVE		4
 #define AMQP_EXCLUSIVE		8
@@ -137,6 +137,11 @@ extern zend_module_entry amqp_module_entry;
 #define AMQP_MULTIPLE		4096
 #define AMQP_NOWAIT			8192
 #define AMQP_REQUEUE		16384
+
+/* passive, durable, auto-delete, internal, no-wait (see https://www.rabbitmq.com/amqp-0-9-1-reference.html#exchange.declare) */
+#define PHP_AMQP_EXCHANGE_FLAGS     AMQP_PASSIVE | AMQP_DURABLE
+/* passive, durable, exclusive, auto-delete, no-wait (see https://www.rabbitmq.com/amqp-0-9-1-reference.html#queue.declare) */
+#define PHP_AMQP_QUEUE_FLAGS        AMQP_PASSIVE | AMQP_DURABLE | AMQP_EXCLUSIVE | AMQP_AUTODELETE | AMQP_EXCLUSIVE
 
 #define AMQP_EX_TYPE_DIRECT		"direct"
 #define AMQP_EX_TYPE_FANOUT		"fanout"
@@ -199,11 +204,11 @@ extern zend_class_entry *amqp_exception_class_entry,
 #define AMQP_READ_ERROR						-1
 
 
-#define IS_PASSIVE(bitmask)		(AMQP_PASSIVE & (bitmask)) ? 1 : 0;
-#define IS_DURABLE(bitmask)		(AMQP_DURABLE & (bitmask)) ? 1 : 0;
-#define IS_EXCLUSIVE(bitmask)	(AMQP_EXCLUSIVE & (bitmask)) ? 1 : 0;
-#define IS_AUTODELETE(bitmask)	(AMQP_AUTODELETE & (bitmask)) ? 1 : 0;
-#define IS_NOWAIT(bitmask)		(AMQP_NOWAIT & (bitmask)) ? 1 : 0; /* NOTE: always 0 in rabbitmq-c internals, so don't use it unless you are clearly understand aftermath*/
+#define IS_PASSIVE(bitmask)		(AMQP_PASSIVE & (bitmask)) ? 1 : 0
+#define IS_DURABLE(bitmask)		(AMQP_DURABLE & (bitmask)) ? 1 : 0
+#define IS_EXCLUSIVE(bitmask)	(AMQP_EXCLUSIVE & (bitmask)) ? 1 : 0
+#define IS_AUTODELETE(bitmask)	(AMQP_AUTODELETE & (bitmask)) ? 1 : 0
+#define IS_NOWAIT(bitmask)		(AMQP_NOWAIT & (bitmask)) ? 1 : 0 /* NOTE: always 0 in rabbitmq-c internals, so don't use it unless you are clearly understand aftermath*/
 
 
 
@@ -348,13 +353,9 @@ typedef struct _amqp_queue_object {
 	int name_len;
 	char consumer_tag[256];
 	int consumer_tag_len;
-	int passive; /* @TODO: consider making these bit fields */
-	int durable;
-	int exclusive;
-	int auto_delete; /* end @TODO */
+	int flags;
 	zval *arguments;
 } amqp_queue_object;
-
 
 typedef struct _amqp_exchange_object {
 	zend_object zo;
@@ -364,9 +365,7 @@ typedef struct _amqp_exchange_object {
 	int name_len;
 	char type[256];
 	int type_len;
-	int passive; /* @TODO: consider making these bit fields */
-	int durable;
-	int auto_delete; /* end @TODO */
+	int flags;
 	zval *arguments;
 } amqp_exchange_object;
 
