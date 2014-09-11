@@ -62,7 +62,7 @@ static void connection_resource_destructor(amqp_connection_resource *resource, i
 
 /* Figure out what's going on connection and handle protocol exceptions, if any */
 
-int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_resource *resource, amqp_channel_t channel_id)
+int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_resource *resource, amqp_channel_t channel_id TSRMLS_DC)
 {
 	assert (resource != NULL);
 

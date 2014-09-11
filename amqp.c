@@ -631,7 +631,7 @@ void amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connect
 	assert(connection != NULL);
 	assert(connection->connection_resource != NULL);
 
-	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource, channel ? channel->channel_id : 0)) {
+	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource, (channel ? channel->channel_id : 0) TSRMLS_CC)) {
 		case PHP_AMQP_RESOURCE_RESPONSE_OK:
 			return;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR:
