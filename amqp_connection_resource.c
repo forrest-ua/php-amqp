@@ -30,6 +30,7 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
+#include "ext/standard/datetime.h"
 #include "zend_exceptions.h"
 
 #ifdef PHP_WIN32
@@ -315,31 +316,43 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	/* Assume we established connection here (but it is not true, real handshake goes during login) */
 	resource->is_connected = '\1';
 
+	char *std_datetime = php_std_date(time(NULL) TSRMLS_CC);
+
     amqp_table_entry_t client_properties_entries[5];
     amqp_table_t       client_properties_table;
 
-	client_properties_entries[0].key 			   = amqp_cstring_bytes("client type");
+	client_properties_entries[0].key               = amqp_cstring_bytes("type");
 	client_properties_entries[0].value.kind        = AMQP_FIELD_KIND_UTF8;
 	client_properties_entries[0].value.value.bytes = amqp_cstring_bytes("php-amqp extension");
 
-	client_properties_entries[1].key 			   = amqp_cstring_bytes("client version");
+	client_properties_entries[1].key               = amqp_cstring_bytes("version");
 	client_properties_entries[1].value.kind        = AMQP_FIELD_KIND_UTF8;
-	client_properties_entries[1].value.value.bytes = amqp_cstring_bytes("PHP_AMQP_VERSION");
+	client_properties_entries[1].value.value.bytes = amqp_cstring_bytes(PHP_AMQP_VERSION);
 
-	client_properties_entries[2].key 			   = amqp_cstring_bytes("client version");
+	client_properties_entries[2].key               = amqp_cstring_bytes("revision");
 	client_properties_entries[2].value.kind        = AMQP_FIELD_KIND_UTF8;
-	client_properties_entries[2].value.value.bytes = amqp_cstring_bytes(PHP_AMQP_VERSION);
+	client_properties_entries[2].value.value.bytes = amqp_cstring_bytes(PHP_AMQP_REVISION);
 
-	client_properties_entries[3].key 			   = amqp_cstring_bytes("client revision");
+	client_properties_entries[3].key               = amqp_cstring_bytes("connection type");
 	client_properties_entries[3].value.kind        = AMQP_FIELD_KIND_UTF8;
-	client_properties_entries[3].value.value.bytes = amqp_cstring_bytes(PHP_AMQP_REVISION);
+	client_properties_entries[3].value.value.bytes = amqp_cstring_bytes(persistent ? "persistent" : "transient");
 
-	client_properties_entries[4].key 			   = amqp_cstring_bytes("client connection");
+	client_properties_entries[4].key               = amqp_cstring_bytes("connection started");
 	client_properties_entries[4].value.kind        = AMQP_FIELD_KIND_UTF8;
-	client_properties_entries[4].value.value.bytes = amqp_cstring_bytes(persistent ? "persistent" : "transient");
+	client_properties_entries[4].value.value.bytes = amqp_cstring_bytes(std_datetime);
 
     client_properties_table.entries = client_properties_entries;
     client_properties_table.num_entries = sizeof(client_properties_entries) / sizeof(amqp_table_entry_t);
+
+    amqp_table_entry_t custom_properties_entries[1];
+    amqp_table_t       custom_properties_table;
+
+	custom_properties_entries[0].key               = amqp_cstring_bytes("client");
+	custom_properties_entries[0].value.kind        = AMQP_FIELD_KIND_TABLE;
+	custom_properties_entries[0].value.value.table = client_properties_table;
+
+	custom_properties_table.entries     = custom_properties_entries;
+	custom_properties_table.num_entries = sizeof(custom_properties_entries) / sizeof(amqp_table_entry_t);
 
 	amqp_rpc_reply_t res = amqp_login_with_properties(
 		resource->connection_state,
@@ -347,11 +360,13 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 		PHP_AMQP_PROTOCOL_MAX_CHANNELS,
 		AMQP_DEFAULT_FRAME_SIZE,
 		PHP_AMQP_HEARTBEAT,
-		&client_properties_table,
+		&custom_properties_table,
 		AMQP_SASL_METHOD_PLAIN,
 		connection->login,
 		connection->password
 	);
+
+	efree(std_datetime);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];

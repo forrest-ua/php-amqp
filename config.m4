@@ -67,7 +67,7 @@ if test "$PHP_AMQP" != "no"; then
 			git describe --tags &>/dev/null
 
 			if test $? -eq 0 ; then
-				AC_DEFINE_UNQUOTED([PHP_AMQP_VERSION], ["`git describe --tags --abbr=0`-dev"], [git version])
+				AC_DEFINE_UNQUOTED([PHP_AMQP_VERSION], ["`git describe --abbr=0`-`git rev-parse --abbrev-ref HEAD`-dev"], [git version])
 			fi
 
 			git rev-parse --short HEAD &>/dev/null
