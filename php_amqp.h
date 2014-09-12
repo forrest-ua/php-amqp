@@ -348,7 +348,6 @@ typedef struct _amqp_connection_object {
 typedef struct _amqp_queue_object {
 	zend_object zo;
 	zval *channel;
-	char is_connected;
 	char name[256];
 	int name_len;
 	char consumer_tag[256];

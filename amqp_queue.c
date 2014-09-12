@@ -354,9 +354,6 @@ PHP_METHOD(amqp_queue_class, __construct)
 	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
 	AMQP_VERIFY_CHANNEL(channel, "Could not construct queue.");
 
-	/* We have a valid connection: */
-	queue->is_connected = '\1';
-
 	/* By default, the auto_delete flag should be set */
 	queue->flags = AMQP_AUTODELETE;
 }
@@ -421,7 +418,6 @@ PHP_METHOD(amqp_queue_class, getFlags)
 {
 	zval *id;
 	amqp_queue_object *queue;
-	long flagBitmask = 0;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_queue_class_entry) == FAILURE) {
 		return;
@@ -581,10 +577,6 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
 
-	amqp_rpc_reply_t res;
-
-	amqp_queue_declare_ok_t *r;
-
 	char *name = "";
 	amqp_table_t *arguments;
 	long message_count;
@@ -608,7 +600,7 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 
 	arguments = convert_zval_to_arguments(queue->arguments);
 
-	r = amqp_queue_declare(
+	amqp_queue_declare_ok_t *r = amqp_queue_declare(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		amqp_cstring_bytes(queue->name),
@@ -619,17 +611,18 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 		*arguments
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
-
 	AMQP_EFREE_ARGUMENTS(arguments);
 
-	/* handle any errors that occured outside of signals */
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
+	if (!r) {
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+
 		char str[256];
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
 
@@ -639,6 +632,8 @@ PHP_METHOD(amqp_queue_class, declareQueue)
 	name = stringify_bytes(r->queue);
 	AMQP_SET_NAME(queue, name);
 	efree(name);
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_LONG(message_count);
 }
@@ -650,30 +645,25 @@ bind queue to exchange by routing key
 */
 PHP_METHOD(amqp_queue_class, bind)
 {
-	zval *id, *arguments = NULL;
+	zval *id, *zvalArguments = NULL;
+
 	amqp_queue_object *queue;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
+
 	char *exchange_name;
-	int exchange_name_len;
-	char *keyname = NULL;
-	int keyname_len = 0;
+	int   exchange_name_len;
 
-	amqp_rpc_reply_t res;
-	amqp_queue_bind_t s;
-	amqp_method_number_t bind_ok = AMQP_QUEUE_BIND_OK_METHOD;
+	char *keyname     = NULL;
+	int   keyname_len = 0;
 
-	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
+	amqp_table_t *arguments;
+
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &zvalArguments) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not bind queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not bind queue.");
@@ -681,29 +671,24 @@ PHP_METHOD(amqp_queue_class, bind)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not bind queue.");
 
-	s.ticket 				= 0;
-	s.queue.len				= queue->name_len;
-	s.queue.bytes			= queue->name;
-	s.exchange.len			= exchange_name_len;
-	s.exchange.bytes		= exchange_name;
-	s.routing_key.len		= keyname_len;
-	s.routing_key.bytes		= keyname;
-	s.nowait				= 0;
-	s.arguments.num_entries = 0;
-	s.arguments.entries     = NULL;
-
-	if (arguments) {
-		s.arguments = *convert_zval_to_arguments(arguments);
+	if (zvalArguments) {
+		arguments = convert_zval_to_arguments(zvalArguments);
 	}
 
-	// TODO: migrate to amqp_* API methods
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_queue_bind(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_BIND_METHOD,
-		&bind_ok,
-		&s
+		amqp_cstring_bytes(queue->name),
+		(exchange_name_len > 0 ? amqp_cstring_bytes(exchange_name) : amqp_empty_bytes),
+		(keyname_len > 0 ? amqp_cstring_bytes(keyname) : amqp_empty_bytes),
+		(zvalArguments ? *arguments : amqp_empty_table)
 	);
+
+	if (zvalArguments) {
+		AMQP_EFREE_ARGUMENTS(arguments);
+	}
+
+	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -711,8 +696,12 @@ PHP_METHOD(amqp_queue_class, bind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
@@ -730,7 +719,6 @@ PHP_METHOD(amqp_queue_class, get)
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
 	zval *message;
-	int read;
 
 	long flags = INI_INT("amqp.auto_ack") ? AMQP_AUTOACK : AMQP_NOPARAM;
 
@@ -740,12 +728,6 @@ PHP_METHOD(amqp_queue_class, get)
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not get messages from queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not get messages from queue.");
@@ -766,6 +748,8 @@ PHP_METHOD(amqp_queue_class, get)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
 
@@ -773,12 +757,7 @@ PHP_METHOD(amqp_queue_class, get)
 		RETURN_FALSE;
 	}
 
-	if (AMQP_BASIC_GET_OK_METHOD != res.reply.id) {
-		// TODO: handle any other methods
-		RETURN_FALSE;
-	}
-
-
+	assert(AMQP_BASIC_GET_OK_METHOD == res.reply.id);
 
     /* Fill the envelope from response */
 	amqp_basic_get_ok_t *get_ok_method = res.reply.decoded;
@@ -792,11 +771,14 @@ PHP_METHOD(amqp_queue_class, get)
 	envelope.exchange     = amqp_bytes_malloc_dup(get_ok_method->exchange);
 	envelope.routing_key  = amqp_bytes_malloc_dup(get_ok_method->routing_key);
 
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
   	res = amqp_read_message(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		&envelope.message,
-	0);
+		0
+	);
 
 	if (AMQP_RESPONSE_NORMAL != res.reply_type) {
 		char str[256];
@@ -804,6 +786,7 @@ PHP_METHOD(amqp_queue_class, get)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 		amqp_destroy_envelope(&envelope);
 		return;
@@ -812,6 +795,7 @@ PHP_METHOD(amqp_queue_class, get)
 	MAKE_STD_ZVAL(message);
 	convert_amqp_envelope_to_zval(&envelope, message TSRMLS_CC);
 
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 	amqp_destroy_envelope(&envelope);
 
 	COPY_PZVAL_TO_ZVAL(*return_value, message);
@@ -832,15 +816,12 @@ PHP_METHOD(amqp_queue_class, consume)
 
 	zend_fcall_info fci;
 	zend_fcall_info_cache fci_cache;
-	int function_call_succeeded = 1;
+
 	amqp_table_t *arguments;
 
 	char *consumer_tag;
+	int   consumer_tag_len = 0;
 
-	int consumer_tag_len = 0;
-	amqp_bytes_t consumer_tag_bytes;
-
-	/* TODO: check whether this value get overridden in arguments parsing below */
 	long flags = INI_INT("amqp.auto_ack") ? AMQP_AUTOACK : AMQP_NOPARAM;
 
 	int call_result;
@@ -861,25 +842,22 @@ PHP_METHOD(amqp_queue_class, consume)
 	/* Setup the consume */
 	arguments = convert_zval_to_arguments(queue->arguments);
 
-	consumer_tag_bytes.bytes = (void *) consumer_tag;
-	consumer_tag_bytes.len = consumer_tag_len;
-
-    amqp_basic_consume(
+    amqp_basic_consume_ok_t * r = amqp_basic_consume(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		amqp_cstring_bytes(queue->name),
-		consumer_tag_bytes,					/* Consumer tag */
-		(AMQP_NOLOCAL & flags) ? 1 : 0, 	/* No local */
-		(AMQP_AUTOACK & flags) ? 1 : 0,		/* no_ack, aka AUTOACK */
+		(consumer_tag_len > 0 ? amqp_cstring_bytes(consumer_tag) : amqp_empty_bytes), /* Consumer tag */
+		(AMQP_NOLOCAL & flags) ? 1 : 0, /* No local */
+		(AMQP_AUTOACK & flags) ? 1 : 0,	/* no_ack, aka AUTOACK */
 		IS_EXCLUSIVE(queue->flags),
 		*arguments
 	);
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
-	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	if (!r) {
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
@@ -889,7 +867,9 @@ PHP_METHOD(amqp_queue_class, consume)
 		return;
 	}
 
-	// TODO assign consumer tag from reply
+	/* Set the consumer tag name, in case it is an autogenerated consumer tag name */
+	AMQP_SET_STR_PROPERTY(queue->consumer_tag, r->consumer_tag.bytes, r->consumer_tag.len);
+	queue->consumer_tag_len = r->consumer_tag.len;
 
 	struct timeval tv = {0};
 	struct timeval *tv_ptr = &tv;
@@ -909,14 +889,17 @@ PHP_METHOD(amqp_queue_class, consume)
 
 		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
-		res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, tv_ptr, 0);
+		amqp_rpc_reply_t res = amqp_consume_message(connection->connection_resource->connection_state, &envelope, tv_ptr, 0);
 
-		if (AMQP_RESPONSE_LIBRARY_EXCEPTION == res.reply_type && AMQP_STATUS_TIMEOUT) {
+		if (AMQP_RESPONSE_LIBRARY_EXCEPTION == res.reply_type && AMQP_STATUS_TIMEOUT == res.library_error) {
 			char str[256];
 			char ** pstr = (char **) &str;
 
 			zend_throw_exception(amqp_queue_exception_class_entry, "Consumer timeout exceed", 0 TSRMLS_CC);
+
 			amqp_destroy_envelope(&envelope);
+			amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 			return;
 		}
 
@@ -928,6 +911,8 @@ PHP_METHOD(amqp_queue_class, consume)
 			amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 
 			amqp_destroy_envelope(&envelope);
+			amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 			return;
 		}
 
@@ -992,20 +977,11 @@ PHP_METHOD(amqp_queue_class, ack)
 	long deliveryTag = 0;
 	long flags = AMQP_NOPARAM;
 
-	amqp_basic_ack_t s;
-	int res;
-
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Ol|l", &id, amqp_queue_class_entry, &deliveryTag, &flags ) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not ack message. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not ack message.");
@@ -1013,28 +989,35 @@ PHP_METHOD(amqp_queue_class, ack)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not ack message.");
 
-	s.delivery_tag = deliveryTag;
-	s.multiple = (AMQP_MULTIPLE & flags) ? 1 : 0;
-
-	// TODO: migrate to amqp_* API call
-	res = amqp_send_method(
+	/* NOTE: basic.ack is asynchronous and thus will not indicate failure if something goes wrong on the broker */
+	int status = amqp_basic_ack(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_ACK_METHOD,
-		&s
+		deliveryTag,
+		(AMQP_MULTIPLE & flags) ? 1 : 0
 	);
 
-	if (res) {
-		// TODO: proper error handling
-		channel->is_connected = 0;
-		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not ack message, error code=%d", res);
+	if (status) {
+		/* Emulate library error */
+		amqp_rpc_reply_t res;
+		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
+		res.library_error = status;
+
+		char str[256];
+		char **pstr = (char **)&str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
 /* }}} */
-
 
 
 /* {{{ proto int AMQPQueue::nack(long deliveryTag, [bit flags=AMQP_NOPARAM]);
@@ -1050,19 +1033,11 @@ PHP_METHOD(amqp_queue_class, nack)
 	long deliveryTag = 0;
 	long flags = AMQP_NOPARAM;
 
-	amqp_basic_nack_t s;
-	int res;
-
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Ol|l", &id, amqp_queue_class_entry, &deliveryTag, &flags ) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not nack message. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not nack message.");
@@ -1070,24 +1045,32 @@ PHP_METHOD(amqp_queue_class, nack)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not nack message.");
 
-	s.delivery_tag = deliveryTag;
-	s.multiple = (AMQP_MULTIPLE & flags) ? 1 : 0;
-	s.requeue = (AMQP_REQUEUE & flags) ? 1 : 0;
-
-	// TODO: migrate to amqp_* API call
-	res = amqp_send_method(
+	/* NOTE: basic.nack is asynchronous and thus will not indicate failure if something goes wrong on the broker */
+	int status = amqp_basic_nack(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_NACK_METHOD,
-		&s
+		deliveryTag,
+		(AMQP_MULTIPLE & flags) ? 1 : 0,
+		(AMQP_REQUEUE & flags) ? 1 : 0
 	);
 
-	// TODO: proper error handling
-	if (res) {
-		channel->is_connected = 0;
-		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not nack message, error code=%d", res);
+	if (status) {
+		/* Emulate library error */
+		amqp_rpc_reply_t res;
+		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
+		res.library_error = status;
+
+		char str[256];
+		char **pstr = (char **)&str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
@@ -1107,19 +1090,11 @@ PHP_METHOD(amqp_queue_class, reject)
 	long deliveryTag = 0;
 	long flags = AMQP_NOPARAM;
 
-	amqp_basic_reject_t s;
-	int res;
-
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Ol|l", &id, amqp_queue_class_entry, &deliveryTag, &flags ) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not reject message. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not reject message.");
@@ -1127,23 +1102,31 @@ PHP_METHOD(amqp_queue_class, reject)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not reject message.");
 
-	s.delivery_tag = deliveryTag;
-	s.requeue = (AMQP_REQUEUE & flags) ? 1 : 0;
-
-	// TODO: migrate to amqp_* API call
-	res = amqp_send_method(
+	/* NOTE: basic.reject is asynchronous and thus will not indicate failure if something goes wrong on the broker */
+	int status = amqp_basic_reject(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_REJECT_METHOD,
-		&s
+		deliveryTag,
+		(AMQP_REQUEUE & flags) ? 1 : 0
 	);
 
-	if (res) {
-		// TODO: proper error handling
-		channel->is_connected = 0;
-		zend_throw_exception_ex(amqp_queue_exception_class_entry, 0 TSRMLS_CC, "Could not reject message, error code=%d", res);
+	if (status) {
+		/* Emulate library error */
+		amqp_rpc_reply_t res;
+		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
+		res.library_error = status;
+
+		char str[256];
+		char **pstr = (char **)&str;
+		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
@@ -1160,22 +1143,11 @@ PHP_METHOD(amqp_queue_class, purge)
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
 
-	amqp_rpc_reply_t res;
-	amqp_rpc_reply_t result;
-	amqp_queue_purge_t s;
-	amqp_method_number_t method_ok = AMQP_QUEUE_PURGE_OK_METHOD;
-
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_queue_class_entry) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry,	"Could not purge queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not purge queue.");
@@ -1183,31 +1155,30 @@ PHP_METHOD(amqp_queue_class, purge)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not purge queue.");
 
-	s.ticket		= 0;
-	s.queue.len		= queue->name_len;
-	s.queue.bytes	= queue->name;
-	s.nowait		= 0;
-
-	// TODO: migrate to amqp_* API methods
-	result = amqp_simple_rpc(
+	amqp_queue_purge_ok_t *r = amqp_queue_purge(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_PURGE_METHOD,
-		&method_ok,
-		&s
+		amqp_cstring_bytes(queue->name)
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST result;
+	if (!r) {
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
 
+	/* long message_count = r->message_count; */
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
+	/* RETURN_LONG(message_count) */;
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1223,24 +1194,14 @@ PHP_METHOD(amqp_queue_class, cancel)
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
 
-	char *consumer_tag = NULL;
-	int consumer_tag_len=0;
-	amqp_rpc_reply_t res;
-	amqp_rpc_reply_t result;
-	amqp_basic_cancel_t s;
-	amqp_method_number_t method_ok = AMQP_BASIC_CANCEL_OK_METHOD;
-
+	char *consumer_tag     = NULL;
+	int   consumer_tag_len = 0;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|s", &id, amqp_queue_class_entry, &consumer_tag, &consumer_tag_len) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not cancel queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not cancel queue.");
@@ -1248,35 +1209,26 @@ PHP_METHOD(amqp_queue_class, cancel)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not cancel queue.");
 
-	if (consumer_tag_len) {
-		s.consumer_tag.len = consumer_tag_len;
-		s.consumer_tag.bytes = consumer_tag;
-		s.nowait = 0;
-	} else {
-		s.consumer_tag.len = queue->consumer_tag_len;
-		s.consumer_tag.bytes = queue->consumer_tag;
-		s.nowait = 0;
-	}
-
-    // TODO: migrate to amqp_* API methods
-	result = amqp_simple_rpc(
+	amqp_basic_cancel_ok_t *r = amqp_basic_cancel(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_BASIC_CANCEL_METHOD,
-		&method_ok,
-		&s
+		consumer_tag_len > 0 ? amqp_cstring_bytes(consumer_tag) : amqp_cstring_bytes(queue->consumer_tag)
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST result;
+	if (!r) {
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
@@ -1288,30 +1240,23 @@ unbind queue from exchange
 */
 PHP_METHOD(amqp_queue_class, unbind)
 {
-	zval *id, *arguments = NULL;
+	zval *id, *zvalArguments = NULL;
 	amqp_queue_object *queue;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
 
 	char *exchange_name;
-	int exchange_name_len;
-	char *keyname = NULL;
-	int keyname_len = 0;
+	int   exchange_name_len;
+	char *keyname     = NULL;
+	int   keyname_len = 0;
 
-	amqp_rpc_reply_t res;
-	amqp_queue_unbind_t s;
-	amqp_method_number_t method_ok = AMQP_QUEUE_UNBIND_OK_METHOD;
+	amqp_table_t *arguments;
 
-	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &arguments) == FAILURE) {
+	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sa", &id, amqp_queue_class_entry, &exchange_name, &exchange_name_len, &keyname, &keyname_len, &zvalArguments) == FAILURE) {
 		return;
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not unbind queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not unbind queue.");
@@ -1319,27 +1264,24 @@ PHP_METHOD(amqp_queue_class, unbind)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not unbind queue.");
 
-	s.ticket				= 0;
-	s.queue.len				= queue->name_len;
-	s.queue.bytes			= queue->name;
-	s.exchange.len			= exchange_name_len;
-	s.exchange.bytes		= exchange_name;
-	s.routing_key.len		= keyname_len;
-	s.routing_key.bytes		= keyname;
-	s.arguments.num_entries = 0;
-	s.arguments.entries		= NULL;
-
-	if (arguments) {
-		s.arguments = *convert_zval_to_arguments(arguments);
+	if (zvalArguments) {
+		arguments = convert_zval_to_arguments(zvalArguments);
 	}
 
-	// TODO: migrate to amqp_* API methods
-	res = AMQP_RPC_REPLY_T_CAST amqp_simple_rpc(
+	amqp_queue_unbind(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		AMQP_QUEUE_UNBIND_METHOD,
-		&method_ok,
-		&s);
+		amqp_cstring_bytes(queue->name),
+		(exchange_name_len > 0 ? amqp_cstring_bytes(exchange_name) : amqp_empty_bytes),
+		(keyname_len > 0 ? amqp_cstring_bytes(keyname) : amqp_empty_bytes),
+		(zvalArguments ? *arguments : amqp_empty_table)
+	);
+
+	if (zvalArguments) {
+		AMQP_EFREE_ARGUMENTS(arguments);
+	}
+
+	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -1347,8 +1289,12 @@ PHP_METHOD(amqp_queue_class, unbind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
@@ -1367,9 +1313,6 @@ PHP_METHOD(amqp_queue_class, delete)
 
 	long flags = AMQP_NOPARAM;
 
-	amqp_queue_delete_ok_t *r;
-	amqp_rpc_reply_t res;
-
 	long message_count;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|l", &id, amqp_queue_class_entry, &flags) == FAILURE) {
@@ -1377,11 +1320,6 @@ PHP_METHOD(amqp_queue_class, delete)
 	}
 
 	queue = (amqp_queue_object *)zend_object_store_get_object(id TSRMLS_CC);
-	/* Check that the given connection has a channel, before trying to pull the connection off the stack */
-	if (queue->is_connected != '\1') {
-		zend_throw_exception(amqp_queue_exception_class_entry, "Could not delete queue. No connection available.", 0 TSRMLS_CC);
-		return;
-	}
 
 	channel = AMQP_GET_CHANNEL(queue);
 	AMQP_VERIFY_CHANNEL(channel, "Could not delete queue.");
@@ -1389,7 +1327,7 @@ PHP_METHOD(amqp_queue_class, delete)
 	connection = AMQP_GET_CONNECTION(channel);
 	AMQP_VERIFY_CONNECTION(connection, "Could not delete queue.");
 
-	r = amqp_queue_delete(
+	amqp_queue_delete_ok_t * r = amqp_queue_delete(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
 		amqp_cstring_bytes(queue->name),
@@ -1397,18 +1335,22 @@ PHP_METHOD(amqp_queue_class, delete)
 		(AMQP_IFEMPTY & flags) ? 1 : 0
 	);
 
-	res = AMQP_RPC_REPLY_T_CAST amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	if (!r) {
+		amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+
 		return;
 	}
 
 	message_count = r->message_count;
+
+	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_LONG(message_count);
 }
