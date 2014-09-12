@@ -71,7 +71,7 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 
 	/* Keep the first number matching the number of entries in this table*/
 	ALLOC_HASHTABLE(debug_info);
-	ZEND_INIT_SYMTABLE_EX(debug_info, 6 + 1, 0);
+	ZEND_INIT_SYMTABLE_EX(debug_info, 13 + 1, 0);
 
 	/* Start adding values */
 	MAKE_STD_ZVAL(value);
@@ -115,9 +115,10 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 	zend_hash_add(debug_info, "is_persistent", sizeof("is_persistent"), &value, sizeof(zval *), NULL);
 
 	MAKE_STD_ZVAL(value);
+
 	if (connection && connection->connection_resource) {
-		Z_ADDREF_P(value);
 		ZVAL_RESOURCE(value, connection->connection_resource->resource_id);
+        zend_list_addref(connection->connection_resource->resource_id);
 	} else {
 		ZVAL_NULL(value);
 	}
