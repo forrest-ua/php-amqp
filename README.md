@@ -17,6 +17,11 @@ Object-oriented PHP bindings for the AMQP C library (https://github.com/alanxz/r
 
 [stub files](https://github.com/pdezwart/php-amqp/tree/master/stubs) with accurate PHPDoc which may be also used in your IDE for code completion, navigation and documentation in-place.
 
+### Notes
+
+  - Max channels per connection means how many concurrent channels per connection may be opened at the same time
+    (this limit may be increased later to max AMQP protocol number - 65532 without any problem).
+
 #### Persistent connection
 
   Limitations:

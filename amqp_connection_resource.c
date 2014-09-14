@@ -314,9 +314,6 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 		return NULL;
 	}
 
-	/* Assume we established connection here (but it is not true, real handshake goes during login) */
-	resource->is_connected = '\1';
-
 	char *std_datetime = php_std_date(time(NULL) TSRMLS_CC);
 
     amqp_table_entry_t client_properties_entries[5];
@@ -355,6 +352,8 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	custom_properties_table.entries     = custom_properties_entries;
 	custom_properties_table.num_entries = sizeof(custom_properties_entries) / sizeof(amqp_table_entry_t);
 
+	/* We can assume that connection established here but it is not true, real handshake goes during login */
+
 	amqp_rpc_reply_t res = amqp_login_with_properties(
 		resource->connection_state,
 		connection->vhost,
@@ -377,10 +376,21 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 
 		strcat(*pstr, " - Potential login failure.");
 		zend_throw_exception(amqp_connection_exception_class_entry, *pstr, 0 TSRMLS_CC);
-
+		/* https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+		 *
+		 * 2.2.4 The Connection Class:
+		 * ... a peer that detects an error MUST close the socket without sending any further data.
+		 *
+		 * 4.10.2 Denial of Service Attacks:
+		 * ... The general response to any exceptional condition in the connection negotiation is to pause that connection
+		 * (presumably a thread) for a period of several seconds and then to close the network connection. This
+		 * includes syntax errors, over-sized data, and failed attempts to authenticate.
+		 */
 		connection_resource_destructor(resource, persistent TSRMLS_CC);
 		return NULL;
 	}
+
+	resource->is_connected = '\1';
 
 	return resource;
 }
