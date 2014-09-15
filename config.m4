@@ -48,7 +48,7 @@ if test "$PHP_AMQP" != "no"; then
 
 	if test -z "$AMQP_DIR"; then
 		AC_MSG_RESULT([not found])
-		AC_MSG_ERROR([Please reinstall the librabbit-mq distribution])
+		AC_MSG_ERROR([Please reinstall the librabbitmq distribution itself or (re)install librabbitmq development package if it available in your system])
 	fi
 
 	dnl # --with-amqp -> add include path
