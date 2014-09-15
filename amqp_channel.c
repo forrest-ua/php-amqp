@@ -65,7 +65,7 @@ HashTable *amqp_channel_object_get_debug_info(zval *object, int *is_temp TSRMLS_
 
 	/* Keep the first number matching the number of entries in this table*/
 	ALLOC_HASHTABLE(debug_info);
-	ZEND_INIT_SYMTABLE_EX(debug_info, 3 + 1, 0);
+	ZEND_INIT_SYMTABLE_EX(debug_info, 4 + 1, 0);
 
 	/* Start adding values */
 	MAKE_STD_ZVAL(value);
