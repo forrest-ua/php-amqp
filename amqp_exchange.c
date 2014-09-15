@@ -65,7 +65,7 @@ HashTable *amqp_exchange_object_get_debug_info(zval *object, int *is_temp TSRMLS
 
 	/* Keep the first number matching the number of entries in this table*/
 	ALLOC_HASHTABLE(debug_info);
-	ZEND_INIT_SYMTABLE_EX(debug_info, 5 + 1, 0);
+	ZEND_INIT_SYMTABLE_EX(debug_info, 6 + 1, 0);
 
 	/* Start adding values */
 	MAKE_STD_ZVAL(value);
@@ -199,9 +199,6 @@ PHP_METHOD(amqp_exchange_class, __construct)
 	/* Pull the channel out */
 	channel = AMQP_GET_CHANNEL(exchange);
 	AMQP_VERIFY_CHANNEL(channel, "Could not create exchange.");
-
-	/* We have a valid connection: */
-	exchange->is_connected = '\1';
 }
 /* }}} */
 
@@ -340,7 +337,6 @@ PHP_METHOD(amqp_exchange_class, setType)
 /* }}} */
 
 
-
 /* {{{ proto AMQPExchange::getArgument(string key)
 Get the exchange argument referenced by key */
 PHP_METHOD(amqp_exchange_class, getArgument)
@@ -367,6 +363,7 @@ PHP_METHOD(amqp_exchange_class, getArgument)
 	INIT_PZVAL(return_value);
 }
 /* }}} */
+
 
 /* {{{ proto AMQPExchange::getArguments
 Get the exchange arguments */
@@ -466,9 +463,8 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 	amqp_exchange_object *exchange;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
-	amqp_table_t *arguments;
 
-	amqp_rpc_reply_t res;
+	amqp_table_t *arguments;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &id, amqp_exchange_class_entry) == FAILURE) {
 		return;
@@ -506,7 +502,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		*arguments
 	);
 
-	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	AMQP_EFREE_ARGUMENTS(arguments);
 
@@ -517,8 +513,12 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_maybe_release_buffers_on_channel(connection, channel);
+
 		return;
 	}
+
+	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
@@ -537,10 +537,9 @@ PHP_METHOD(amqp_exchange_class, delete)
 	amqp_connection_object *connection;
 
 	char *name = 0;
-	int name_len = 0;
-	long flags = 0;
+	int   name_len = 0;
 
-	amqp_rpc_reply_t res;
+	long flags = 0;
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O|sl", &id, amqp_exchange_class_entry, &name, &name_len, &flags) == FAILURE) {
 		return;
@@ -561,7 +560,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 		(AMQP_IFUNUSED & flags) ? 1 : 0
 	);
 
-	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
@@ -569,12 +568,16 @@ PHP_METHOD(amqp_exchange_class, delete)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 		return;
 	}
+
+	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
 /* }}} */
+
 
 /* {{{ proto AMQPExchange::publish(string msg, [string key, [int flags, [array headers]]]);
 publish into Exchange
@@ -589,10 +592,10 @@ PHP_METHOD(amqp_exchange_class, publish)
 	amqp_connection_object *connection;
 
 	char *key_name = NULL;
-	int key_len = 0;
+	int   key_len  = 0;
 
 	char *msg;
-	int msg_len= 0;
+	int   msg_len= 0;
 
 	long flags = AMQP_NOPARAM;
 
@@ -602,10 +605,6 @@ PHP_METHOD(amqp_exchange_class, publish)
 #endif
 
 	amqp_basic_properties_t props;
-
-	amqp_rpc_reply_t res;
-	amqp_bytes_t abt0, abt1, abt2;
-
 
 	if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|sla", &id, amqp_exchange_class_entry, &msg, &msg_len, &key_name, &key_len, &flags, &ini_arr) == FAILURE) {
 		return;
@@ -813,23 +812,17 @@ PHP_METHOD(amqp_exchange_class, publish)
 	old_handler = signal(SIGPIPE, SIG_IGN);
 #endif
 
-	abt0.len = exchange->name_len;
-	abt0.bytes = exchange->name;
-	abt1.len = key_len;
-	abt1.bytes = key_name;
-	abt2.len = msg_len;
-	abt2.bytes = msg;
+	/* NOTE: basic.publish is asynchronous and thus will not indicate failure if something goes wrong on the broker */
 
-	/* TODO use, amqp_cstring_bytes, handle response, etc */
-	amqp_basic_publish(
+	int status = amqp_basic_publish(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
-		abt0,
-		abt1,
+		(exchange->name_len > 0 ? amqp_cstring_bytes(exchange->name) : amqp_empty_bytes),	/* exchange */
+		(key_len > 0 ? amqp_cstring_bytes(key_name) : amqp_empty_bytes), /* routing key */
 		(AMQP_MANDATORY & flags) ? 1 : 0, /* mandatory */
 		(AMQP_IMMEDIATE & flags) ? 1 : 0, /* immediate */
 		&props,
-		abt2
+		(msg_len > 0 ? amqp_cstring_bytes(msg) : amqp_empty_bytes) /* message body */
 	);
 
 	if (props.headers.entries) {
@@ -845,16 +838,23 @@ PHP_METHOD(amqp_exchange_class, publish)
 	signal(SIGPIPE, old_handler);
 #endif
 
-	res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
+	if (status != AMQP_STATUS_OK) {
+		/* Emulate library error */
+		amqp_rpc_reply_t res;
+		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
+		res.library_error = status;
 
-	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
-		char ** pstr = (char **) &str;
+		char **pstr = (char **)&str;
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_maybe_release_buffers_on_channel(connection, channel);
+
 		return;
 	}
+
+	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
@@ -918,12 +918,12 @@ PHP_METHOD(amqp_exchange_class, bind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
 	}
 
-	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
@@ -986,12 +986,12 @@ PHP_METHOD(amqp_exchange_class, unbind)
 		amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
-		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
 	}
 
-	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
