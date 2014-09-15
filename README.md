@@ -22,6 +22,8 @@ Object-oriented PHP bindings for the AMQP C library (https://github.com/alanxz/r
   - Max channels per connection means how many concurrent channels per connection may be opened at the same time
     (this limit may be increased later to max AMQP protocol number - 65532 without any problem).
 
+  - Nested header arrays may contain only string values.
+
 #### Persistent connection
 
   Limitations:

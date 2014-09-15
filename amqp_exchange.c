@@ -587,6 +587,8 @@ PHP_METHOD(amqp_exchange_class, publish)
 	zval *id;
 	zval *ini_arr = NULL;
 	zval** zdata;
+	zval *ztmp;
+
 	amqp_exchange_object *exchange;
 	amqp_channel_object *channel;
 	amqp_connection_object *connection;
@@ -618,184 +620,212 @@ PHP_METHOD(amqp_exchange_class, publish)
 		return;
 	}
 
-	props._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
+	/* By default (and for BC) content type is text/plain (may be skipped at all, then set props._flags to 0) */
+	props.content_type = amqp_cstring_bytes("text/plain");
+	props._flags       = AMQP_BASIC_CONTENT_TYPE_FLAG;
 
-	zdata = NULL;
+	ALLOC_ZVAL(ztmp);
+
+	{
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "content_type", sizeof("content_type"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.content_type = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-	} else {
-		props.content_type = amqp_cstring_bytes("text/plain");
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.content_type = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_CONTENT_TYPE_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "content_encoding", sizeof("content_encoding"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.content_encoding = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_CONTENT_ENCODING_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.content_encoding = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_CONTENT_ENCODING_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "message_id", sizeof("message_id"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.message_id = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_MESSAGE_ID_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.message_id = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_MESSAGE_ID_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "user_id", sizeof("user_id"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.user_id = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_USER_ID_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.user_id = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_USER_ID_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "app_id", sizeof("app_id"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.app_id = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_APP_ID_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.app_id = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_APP_ID_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "delivery_mode", sizeof("delivery_mode"), (void*)&zdata)) {
-		convert_to_long(*zdata);
-	}
-	if (zdata) {
-		props.delivery_mode = (uint8_t)Z_LVAL_PP(zdata);
-		props._flags += AMQP_BASIC_DELIVERY_MODE_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_long(ztmp);
+
+		props.delivery_mode = (uint8_t)Z_LVAL_P(ztmp);
+		props._flags |= AMQP_BASIC_DELIVERY_MODE_FLAG;
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "priority", sizeof("priority"), (void*)&zdata)) {
-		convert_to_long(*zdata);
-	}
-	if (zdata) {
-		props.priority = (uint8_t)Z_LVAL_PP(zdata);
-		props._flags += AMQP_BASIC_PRIORITY_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_long(ztmp);
+
+		props.priority = (uint8_t)Z_LVAL_P(ztmp);
+		props._flags |= AMQP_BASIC_PRIORITY_FLAG;
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "timestamp", sizeof("timestamp"), (void*)&zdata)) {
-		convert_to_long(*zdata);
-	}
-	if (zdata) {
-		props.timestamp = (uint64_t)Z_LVAL_PP(zdata);
-		props._flags += AMQP_BASIC_TIMESTAMP_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_long(ztmp);
+
+		props.timestamp = (uint64_t)Z_LVAL_P(ztmp);
+		props._flags |= AMQP_BASIC_TIMESTAMP_FLAG;
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "expiration", sizeof("expiration"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.expiration =	amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_EXPIRATION_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.expiration = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_EXPIRATION_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "type", sizeof("type"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.type =  amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_TYPE_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.type = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_TYPE_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "reply_to", sizeof("reply_to"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.reply_to = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_REPLY_TO_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.reply_to = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_REPLY_TO_FLAG;
+		}
 	}
 
-	zdata = NULL;
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF (ini_arr), "correlation_id", sizeof("correlation_id"), (void*)&zdata)) {
-		convert_to_string(*zdata);
-	}
-	if (zdata && strlen(Z_STRVAL_PP(zdata)) > 0) {
-		props.correlation_id = amqp_cstring_bytes((char *)Z_STRVAL_PP(zdata));
-		props._flags += AMQP_BASIC_CORRELATION_ID_FLAG;
+		MAKE_COPY_ZVAL(zdata, ztmp);
+		convert_to_string(ztmp);
+
+		if (Z_STRLEN_P(ztmp) > 0) {
+			props.correlation_id = amqp_cstring_bytes((char *)Z_STRVAL_P(ztmp));
+			props._flags |= AMQP_BASIC_CORRELATION_ID_FLAG;
+		}
 	}
 
-	zdata = NULL;
+	}
+
 	if (ini_arr && SUCCESS == zend_hash_find(HASH_OF(ini_arr), "headers", sizeof("headers"), (void*)&zdata)) {
 		HashTable *headers;
 		HashPosition pos;
+		zval **z;
 
-		convert_to_array(*zdata);
-		headers = HASH_OF(*zdata);
+		MAKE_COPY_ZVAL(zdata, ztmp);
+
+		convert_to_array(ztmp);
+
+		headers = HASH_OF(ztmp);
 		zend_hash_internal_pointer_reset_ex(headers, &pos);
 
-		props._flags += AMQP_BASIC_HEADERS_FLAG;
+		props._flags |= AMQP_BASIC_HEADERS_FLAG;
 		props.headers.entries = emalloc(sizeof(struct amqp_table_entry_t_) * zend_hash_num_elements(headers));
 		props.headers.num_entries = 0;
 
-		while (zend_hash_get_current_data_ex(headers, (void **)&zdata, &pos) == SUCCESS) {
+		/* TODO: merge codebase with convert_zval_to_arguments function (then also merge AMQP_EFREE_ARGUMENTS macro and free_field_value function) */
+		while (zend_hash_get_current_data_ex(headers, (void **)&z, &pos) == SUCCESS) {
 			char *string_key;
-			uint string_key_len;
+			uint  string_key_len;
+
 			int	type;
 			ulong  num_key;
 
 			type = zend_hash_get_current_key_ex(headers, &string_key, &string_key_len, &num_key, 0, &pos);
 
-			props.headers.entries[props.headers.num_entries].key.bytes = string_key;
-			props.headers.entries[props.headers.num_entries].key.len = string_key_len - 1;
+			zend_hash_move_forward_ex(headers, &pos);
 
-			if (Z_TYPE_P(*zdata) == IS_STRING) {
-				convert_to_string(*zdata);
-				props.headers.entries[props.headers.num_entries].value.kind = AMQP_FIELD_KIND_UTF8;
-				props.headers.entries[props.headers.num_entries].value.value.bytes.bytes = Z_STRVAL_P(*zdata);
-				props.headers.entries[props.headers.num_entries].value.value.bytes.len = Z_STRLEN_P(*zdata);
+			if (HASH_KEY_IS_STRING == type) {
+				props.headers.entries[props.headers.num_entries].key.bytes = string_key;
+				props.headers.entries[props.headers.num_entries].key.len = string_key_len - 1;
+			} else {
+				/* previous version ignored non-string keys, so we just make notice about it */
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Ignoring non-string header field '%lu'", num_key);
+
+				continue;
+			}
+
+			if (Z_TYPE_PP(z) == IS_STRING) {
+				props.headers.entries[props.headers.num_entries].value.kind              = AMQP_FIELD_KIND_UTF8;
+				props.headers.entries[props.headers.num_entries].value.value.bytes.bytes = Z_STRVAL_PP(z);
+				props.headers.entries[props.headers.num_entries].value.value.bytes.len   = Z_STRLEN_PP(z);
 				props.headers.num_entries++;
-			} else if (Z_TYPE_P(*zdata) == IS_LONG) {
-				convert_to_long(*zdata);
-				props.headers.entries[props.headers.num_entries].value.kind = AMQP_FIELD_KIND_I32;
-				props.headers.entries[props.headers.num_entries].value.value.i32 = Z_LVAL_P(*zdata);
+			} else if (Z_TYPE_PP(z) == IS_LONG) {
+				props.headers.entries[props.headers.num_entries].value.kind      = AMQP_FIELD_KIND_I64;
+				props.headers.entries[props.headers.num_entries].value.value.i64 = (int64_t) Z_LVAL_PP(z);
 				props.headers.num_entries++;
-			} else if (Z_TYPE_P(*zdata) == IS_DOUBLE) {
-				convert_to_double(*zdata);
-				props.headers.entries[props.headers.num_entries].value.kind = AMQP_FIELD_KIND_F32;
-				props.headers.entries[props.headers.num_entries].value.value.f32 = (float)Z_DVAL_P(*zdata);
+			} else if (Z_TYPE_PP(z) == IS_DOUBLE) {
+				props.headers.entries[props.headers.num_entries].value.kind      = AMQP_FIELD_KIND_F64;
+				props.headers.entries[props.headers.num_entries].value.value.f64 = (double)Z_DVAL_PP(z);
 				props.headers.num_entries++;
-			} else if (Z_TYPE_PP(zdata) == IS_ARRAY) {
+			} else if (Z_TYPE_PP(z) == IS_BOOL) {
+				props.headers.entries[props.headers.num_entries].value.kind      = AMQP_FIELD_KIND_BOOLEAN;
+				props.headers.entries[props.headers.num_entries].value.value.boolean = (amqp_boolean_t)Z_BVAL_PP(z);
+				props.headers.num_entries++;
+			} else if (Z_TYPE_PP(z) == IS_ARRAY) {
 				zval **arr_data;
 				amqp_array_t array;
 				HashPosition arr_pos;
-				array.entries = emalloc(sizeof(struct amqp_field_value_t_) * zend_hash_num_elements(Z_ARRVAL_PP(zdata)));
+
+				array.entries     = emalloc(sizeof(struct amqp_field_value_t_) * zend_hash_num_elements(Z_ARRVAL_PP(z)));
 				array.num_entries = 0;
 				for(
-					zend_hash_internal_pointer_reset_ex(Z_ARRVAL_PP(zdata), &arr_pos);
-					zend_hash_get_current_data_ex(Z_ARRVAL_PP(zdata), (void**) &arr_data, &arr_pos) == SUCCESS;
-					zend_hash_move_forward_ex(Z_ARRVAL_PP(zdata), &arr_pos)
+					zend_hash_internal_pointer_reset_ex(Z_ARRVAL_PP(z), &arr_pos);
+					zend_hash_get_current_data_ex(Z_ARRVAL_PP(z), (void**) &arr_data, &arr_pos) == SUCCESS;
+					zend_hash_move_forward_ex(Z_ARRVAL_PP(z), &arr_pos)
 				) {
 					if (Z_TYPE_PP(arr_data) == IS_STRING) {
-						array.entries[array.num_entries].kind = AMQP_FIELD_KIND_UTF8;
+						array.entries[array.num_entries].kind              = AMQP_FIELD_KIND_UTF8;
 						array.entries[array.num_entries].value.bytes.bytes = Z_STRVAL_PP(arr_data);
-						array.entries[array.num_entries].value.bytes.len = Z_STRLEN_PP(arr_data);
+						array.entries[array.num_entries].value.bytes.len   = Z_STRLEN_PP(arr_data);
 						array.num_entries ++;
 					} else {
-						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Ignoring non-string array member type %d for field '%s'", Z_TYPE_PP(arr_data), string_key);
+						php_error_docref(NULL TSRMLS_CC, E_WARNING, "Ignoring non-string header nested array member type %d for field '%s'", Z_TYPE_PP(arr_data), string_key);
 					}
 				}
 
 				props.headers.entries[props.headers.num_entries].value.kind = AMQP_FIELD_KIND_ARRAY;
 				props.headers.entries[props.headers.num_entries].value.value.array = array;
 				props.headers.num_entries++;
+			} else {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "Ignoring header field '%s' due to unsupported value type (NULL, array or resource)", string_key);
 			}
-
-			zend_hash_move_forward_ex(headers, &pos);
 		}
 	} else {
 		props.headers.entries = 0;
@@ -813,7 +843,6 @@ PHP_METHOD(amqp_exchange_class, publish)
 #endif
 
 	/* NOTE: basic.publish is asynchronous and thus will not indicate failure if something goes wrong on the broker */
-
 	int status = amqp_basic_publish(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -832,6 +861,8 @@ PHP_METHOD(amqp_exchange_class, publish)
 		}
 		efree(props.headers.entries);
 	}
+
+	FREE_ZVAL(ztmp);
 
 #ifndef PHP_WIN32
 	/* End ignoring of SIGPIPEs */
@@ -853,8 +884,6 @@ PHP_METHOD(amqp_exchange_class, publish)
 
 		return;
 	}
-
-	php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 	RETURN_TRUE;
 }
