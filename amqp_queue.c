@@ -1013,8 +1013,6 @@ PHP_METHOD(amqp_queue_class, ack)
 		return;
 	}
 
-	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
-
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1070,8 +1068,6 @@ PHP_METHOD(amqp_queue_class, nack)
 		return;
 	}
 
-	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
-
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1125,8 +1121,6 @@ PHP_METHOD(amqp_queue_class, reject)
 
 		return;
 	}
-
-	amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
 
 	RETURN_TRUE;
 }
