@@ -695,6 +695,17 @@ void amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_c
 }
 
 
+void php_amqp_maybe_release_buffers_on_channel(amqp_connection_object *connection, amqp_channel_object *channel)
+{
+	assert(connection != NULL);
+	assert(channel != NULL);
+	assert(channel->channel_id > 0);
+
+	if (connection->connection_resource) {
+		amqp_maybe_release_buffers_on_channel(connection->connection_resource->connection_state, channel->channel_id);
+	}
+}
+
 char *stringify_bytes(amqp_bytes_t bytes)
 {
 /* We will need up to 4 chars per byte, plus the terminating 0 */
