@@ -153,6 +153,8 @@ int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_con
 /* Socket-related functions */
 int php_amqp_set_resource_read_timeout(amqp_connection_resource *resource, double timeout TSRMLS_DC)
 {
+	assert(timeout >= 0.0);
+
 #ifdef PHP_WIN32
 	DWORD read_timeout;
 	/*
@@ -182,6 +184,8 @@ int php_amqp_set_resource_read_timeout(amqp_connection_resource *resource, doubl
 
 int php_amqp_set_resource_write_timeout(amqp_connection_resource *resource, double timeout TSRMLS_DC)
 {
+	assert(timeout >= 0.0);
+
 #ifdef PHP_WIN32
 	DWORD write_timeout;
 

@@ -25,19 +25,9 @@ try {
 //
 echo ($cnn->isConnected() ? 'connected' : 'disconnected'), PHP_EOL;
 
-// NOTE: on travis CI this following expectation fails:
-//
-//--EXPECT--
-//disconnected
-//AMQPConnectionException: Library error: connection closed unexpectedly - Potential login failure.
-//disconnected
-//
-// with:
-//
-//002+ AMQPConnectionException: Library error: a socket error occurred - Potential login failure.
-//002- AMQPConnectionException: Library error: connection closed unexpectedly - Potential login failure.
+// NOTE: in real-world environment (incl. travis ci) "a socket error occurred" happens, but in vagrant environment "connection closed unexpectedly" happens. WTF?
 ?>
---EXPECT--
+--EXPECTF--
 disconnected
-AMQPConnectionException: Library error: connection closed unexpectedly - Potential login failure.
+AMQPConnectionException: Library error: %s - Potential login failure.
 disconnected
