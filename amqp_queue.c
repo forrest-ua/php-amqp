@@ -997,7 +997,7 @@ PHP_METHOD(amqp_queue_class, ack)
 		(AMQP_MULTIPLE & flags) ? 1 : 0
 	);
 
-	if (status) {
+	if (status != AMQP_STATUS_OK) {
 		/* Emulate library error */
 		amqp_rpc_reply_t res;
 		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
@@ -1052,7 +1052,7 @@ PHP_METHOD(amqp_queue_class, nack)
 		(AMQP_REQUEUE & flags) ? 1 : 0
 	);
 
-	if (status) {
+	if (status != AMQP_STATUS_OK) {
 		/* Emulate library error */
 		amqp_rpc_reply_t res;
 		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
@@ -1106,7 +1106,7 @@ PHP_METHOD(amqp_queue_class, reject)
 		(AMQP_REQUEUE & flags) ? 1 : 0
 	);
 
-	if (status) {
+	if (status != AMQP_STATUS_OK) {
 		/* Emulate library error */
 		amqp_rpc_reply_t res;
 		res.reply_type 	  = AMQP_RESPONSE_LIBRARY_EXCEPTION;
