@@ -130,8 +130,6 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 	}
-
-	return;
 }
 
 
@@ -222,7 +220,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 		return;
 	}
 
-	if (FAILURE == php_amqp_connection_resource_register_channel(connection->connection_resource, channel, channel->channel_id)) {
+	if (php_amqp_connection_resource_register_channel(connection->connection_resource, channel, channel->channel_id) == FAILURE) {
 		zend_throw_exception(amqp_channel_exception_class_entry, "Could not create channel. Failed to add channel to connection slot.", 0 TSRMLS_CC);
 	}
 
