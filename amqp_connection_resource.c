@@ -62,30 +62,32 @@ static void connection_resource_destructor(amqp_connection_resource *resource, i
 
 /* Figure out what's going on connection and handle protocol exceptions, if any */
 
-int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_resource *resource, amqp_channel_t channel_id TSRMLS_DC)
+int php_amqp_connection_resource_error(amqp_rpc_reply_t reply, char **message, amqp_connection_resource *resource, amqp_channel_t channel_id TSRMLS_DC)
 {
 	assert (resource != NULL);
 
-	switch (x.reply_type) {
+	switch (reply.reply_type) {
 		case AMQP_RESPONSE_NORMAL:
 			return PHP_AMQP_RESOURCE_RESPONSE_OK;
 
 		case AMQP_RESPONSE_NONE:
-			spprintf(pstr, 0, "Missing RPC reply type.");
+			spprintf(message, 0, "Missing RPC reply type.");
 			return PHP_AMQP_RESOURCE_RESPONSE_ERROR;
 
 		case AMQP_RESPONSE_LIBRARY_EXCEPTION:
-			spprintf(pstr, 0, "Library error: %s", amqp_error_string2(x.library_error));
+			spprintf(message, 0, "Library error: %s", amqp_error_string2(reply.library_error));
 			return PHP_AMQP_RESOURCE_RESPONSE_ERROR;
 
 		case AMQP_RESPONSE_SERVER_EXCEPTION:
-			switch (x.reply.id) {
+			switch (reply.reply.id) {
 				case AMQP_CONNECTION_CLOSE_METHOD: {
-					amqp_connection_close_t *m = (amqp_connection_close_t *)x.reply.decoded;
-					spprintf(pstr, 0, "Server connection error: %d, message: %.*s",
+					amqp_connection_close_t *m = (amqp_connection_close_t *)reply.reply.decoded;
+
+					spprintf(message, 0, "Server connection error: %d, message: %.*s",
 						m->reply_code,
 						(int) m->reply_text.len,
-						(char *)m->reply_text.bytes);
+						(char *) m->reply_text.bytes
+					);
 
 					/*
 					 *    - If r.reply.id == AMQP_CONNECTION_CLOSE_METHOD a connection exception
@@ -111,12 +113,13 @@ int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_con
 				case AMQP_CHANNEL_CLOSE_METHOD: {
 					assert(channel_id > 0 && channel_id <= PHP_AMQP_MAX_CHANNELS);
 
-					amqp_channel_close_t *m = (amqp_channel_close_t *) x.reply.decoded;
+					amqp_channel_close_t *m = (amqp_channel_close_t *) reply.reply.decoded;
 
-					spprintf(pstr, 0, "Server channel error: %d, message: %.*s",
+					spprintf(message, 0, "Server channel error: %d, message: %.*s",
 						m->reply_code,
-						(int)m->reply_text.len,
-						(char *)m->reply_text.bytes);
+						(int) m->reply_text.len,
+						(char *)m->reply_text.bytes
+					);
 
 					/*
 					 *    - If r.reply.id == AMQP_CHANNEL_CLOSE_METHOD a channel exception
@@ -142,7 +145,7 @@ int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_con
 			}
 		/* Default for the above switch should be handled by the below default. */
 		default:
-			spprintf(pstr, 0, "Unknown server error, method id 0x%08X",	x.reply.id);
+			spprintf(message, 0, "Unknown server error, method id 0x%08X",	reply.reply.id);
 			return PHP_AMQP_RESOURCE_RESPONSE_ERROR;
 	}
 
@@ -270,6 +273,13 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	struct timeval tv = {0};
 	struct timeval *tv_ptr = &tv;
 
+	char *std_datetime;
+    amqp_table_entry_t client_properties_entries[5];
+    amqp_table_t       client_properties_table;
+
+    amqp_table_entry_t custom_properties_entries[1];
+    amqp_table_t       custom_properties_table;
+
 	amqp_connection_resource *resource;
 
 	/* Allocate space for the connection resource */
@@ -318,10 +328,7 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 		return NULL;
 	}
 
-	char *std_datetime = php_std_date(time(NULL) TSRMLS_CC);
-
-    amqp_table_entry_t client_properties_entries[5];
-    amqp_table_t       client_properties_table;
+	std_datetime = php_std_date(time(NULL) TSRMLS_CC);
 
 	client_properties_entries[0].key               = amqp_cstring_bytes("type");
 	client_properties_entries[0].value.kind        = AMQP_FIELD_KIND_UTF8;
@@ -345,9 +352,6 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 
     client_properties_table.entries = client_properties_entries;
     client_properties_table.num_entries = sizeof(client_properties_entries) / sizeof(amqp_table_entry_t);
-
-    amqp_table_entry_t custom_properties_entries[1];
-    amqp_table_t       custom_properties_table;
 
 	custom_properties_entries[0].key               = amqp_cstring_bytes("client");
 	custom_properties_entries[0].value.kind        = AMQP_FIELD_KIND_TABLE;
@@ -373,13 +377,12 @@ amqp_connection_resource *connection_resource_constructor(amqp_connection_object
 	efree(std_datetime);
 
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
-		char str[256];
-    	char ** pstr = (char **) &str;
+		PHP_AMQP_INIT_ERROR_MESSAGE();
 
-		php_amqp_connection_resource_error(res, pstr, resource, 0 TSRMLS_CC);
+		php_amqp_connection_resource_error(res, message, resource, 0 TSRMLS_CC);
 
-		strcat(*pstr, " - Potential login failure.");
-		zend_throw_exception(amqp_connection_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		strcat(*message, " - Potential login failure.");
+		zend_throw_exception(amqp_connection_exception_class_entry, *message, 0 TSRMLS_CC);
 		/* https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 		 *
 		 * 2.2.4 The Connection Class:
