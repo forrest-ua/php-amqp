@@ -1220,7 +1220,7 @@ PHP_METHOD(amqp_connection_class, setWriteTimeout)
 /* }}} */
 
 /* {{{ proto amqp::getUsedChannels()
-get write timeout */
+Get max used channels number */
 PHP_METHOD(amqp_connection_class, getUsedChannels)
 {
 	zval *id;
@@ -1235,7 +1235,9 @@ PHP_METHOD(amqp_connection_class, getUsedChannels)
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	if (!connection->is_connected) {
-		return;
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Connection is not connected.");
+
+		RETURN_LONG(0);
 	}
 
 	/* Copy the timeout to the amqp object */
@@ -1243,9 +1245,9 @@ PHP_METHOD(amqp_connection_class, getUsedChannels)
 }
 /* }}} */
 
-/* {{{ proto amqp::getMaxChannelId()
-get write timeout */
-PHP_METHOD(amqp_connection_class, getMaxChannelId)
+/* {{{ proto amqp::getMaxChannels()
+Get max supported channels number per connection*/
+PHP_METHOD(amqp_connection_class, getMaxChannels)
 {
 	zval *id;
 	amqp_connection_object *connection;
@@ -1259,19 +1261,15 @@ PHP_METHOD(amqp_connection_class, getMaxChannelId)
 	connection = (amqp_connection_object *)zend_object_store_get_object(id TSRMLS_CC);
 
 	if (!connection->is_connected) {
-		return;
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Connection is not connected.");
+
+		RETURN_LONG(0);
 	}
 
 	/* Copy the timeout to the amqp object */
 	RETURN_LONG(amqp_get_channel_max(connection->connection_resource->connection_state));
 }
 /* }}} */
-
-//int amqp_get_channel_max(amqp_connection_state_t state)
-//{
-//  return state->channel_max;
-//}
-
 
 
 /* {{{ proto amqp::isPersistent()

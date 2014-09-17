@@ -305,7 +305,7 @@ class AMQPConnection
      *
      * @return int|null
      */
-    public function getMaxChannelId()
+    public function getMaxChannels()
     {
     }
 

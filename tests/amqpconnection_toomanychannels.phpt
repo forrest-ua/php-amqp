@@ -11,7 +11,7 @@ $channels = array();
 
 for ($i = 0; $i < PHP_AMQP_MAX_CHANNELS; $i++) {
 	$channel = $channels[] = new AMQPChannel($cnn);
-    //echo '#', $channel->getChannelId(), ', used ', $cnn->getUsedChannels(), ' of ', $cnn->getMaxChannelId(), PHP_EOL;
+    //echo '#', $channel->getChannelId(), ', used ', $cnn->getUsedChannels(), ' of ', $cnn->getMaxChannels(), PHP_EOL;
 }
 
 echo "Good\n";
