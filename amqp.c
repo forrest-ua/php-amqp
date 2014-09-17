@@ -626,17 +626,17 @@ zend_module_entry amqp_module_entry = {
 	ZEND_GET_MODULE(amqp)
 #endif
 
-void php_amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC)
+void php_amqp_error(amqp_rpc_reply_t reply, char **message, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC)
 {
 	assert(connection != NULL);
 	assert(connection->connection_resource != NULL);
 
-	switch (php_amqp_connection_resource_error(x, pstr, connection->connection_resource, (channel ? channel->channel_id : 0) TSRMLS_CC)) {
+	switch (php_amqp_connection_resource_error(reply, message, connection->connection_resource, (channel ? channel->channel_id : 0) TSRMLS_CC)) {
 		case PHP_AMQP_RESOURCE_RESPONSE_OK:
-			return;
+			break;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR:
 			/* Library or other non-protocol or even protocol related errors may be here, do nothing with this for now. */
-			return;
+			break;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR_CHANNEL_CLOSED:
 			/* Mark channel as closed to prevent sending channel.close request */
 			assert(channel != NULL);
@@ -646,7 +646,7 @@ void php_amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *con
 			php_amqp_close_channel(channel TSRMLS_CC);
 
 			/* No more error handling necessary, returning. */
-			return;
+			break;
 		case PHP_AMQP_RESOURCE_RESPONSE_ERROR_CONNECTION_CLOSED:
 			/* Mark connection as closed to prevent sending any further requests */
 			connection->is_connected = '\0';
@@ -655,16 +655,16 @@ void php_amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *con
 			php_amqp_disconnect_force(connection TSRMLS_CC);
 
 			/* No more error handling necessary, returning. */
-			return;
+			break;
 		default:
-			spprintf(pstr, 0, "Unknown server error, method id 0x%08X (not handled by extension)", x.reply.id);
+			spprintf(message, 0, "Unknown server error, method id 0x%08X (not handled by extension)", reply.reply.id);
 			break;
 	}
 }
 
-void php_amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC)
+void php_amqp_zend_throw_exception(amqp_rpc_reply_t reply, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC)
 {
-	switch (x.reply_type) {
+	switch (reply.reply_type) {
 		case AMQP_RESPONSE_NORMAL:
 			break;
 		case AMQP_RESPONSE_NONE:
@@ -674,7 +674,7 @@ void php_amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *excepti
 			exception_ce = amqp_exception_class_entry;
 			break;
 		case AMQP_RESPONSE_SERVER_EXCEPTION:
-			switch (x.reply.id) {
+			switch (reply.reply.id) {
 				case AMQP_CONNECTION_CLOSE_METHOD:
 					/* Fatal errors - pass them to connection level */
 					exception_ce = amqp_connection_exception_class_entry;

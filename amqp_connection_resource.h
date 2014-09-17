@@ -32,7 +32,7 @@ int le_amqp_connection_resource;
 int le_amqp_connection_resource_persistent;
 
 /* Figure out what's going on connection and handle protocol exceptions, if any */
-int php_amqp_connection_resource_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_resource *resource, amqp_channel_t channel_id TSRMLS_DC);
+int php_amqp_connection_resource_error(amqp_rpc_reply_t reply, char **message, amqp_connection_resource *resource, amqp_channel_t channel_id TSRMLS_DC);
 
 /* Socket-related functions */
 int php_amqp_set_resource_read_timeout(amqp_connection_resource *resource, double read_timeout TSRMLS_DC);

@@ -292,6 +292,10 @@ extern zend_class_entry *amqp_exception_class_entry,
 		AMQP_VERIFY_CONNECTION_ERROR(error, "No connection available.") \
 	} \
 
+#define PHP_AMQP_INIT_ERROR_MESSAGE()\
+	char __internal_message[256]; \
+	char ** message = (char **) &__internal_message; \
+
 #if ZEND_MODULE_API_NO >= 20100000
 	#define AMQP_OBJECT_PROPERTIES_INIT(obj, ce) object_properties_init(&obj, ce);
 #else
@@ -426,8 +430,9 @@ typedef struct _amqp_envelope_object {
 #define PHP_AMQP_REVISION "release"
 #endif
 
-void php_amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC);
-void amqp_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC);
+void php_amqp_error(amqp_rpc_reply_t reply, char **message, amqp_connection_object *connection, amqp_channel_object *channel TSRMLS_DC);
+void amqp_exception(amqp_rpc_reply_t reply, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC);
+
 void php_amqp_maybe_release_buffers_on_channel(amqp_connection_object *connection, amqp_channel_object *channel);
 
 #endif	/* PHP_AMQP_H */
