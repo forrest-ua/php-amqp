@@ -662,7 +662,7 @@ void php_amqp_error(amqp_rpc_reply_t x, char **pstr, amqp_connection_object *con
 	}
 }
 
-void amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC)
+void php_amqp_zend_throw_exception(amqp_rpc_reply_t x, zend_class_entry *exception_ce, const char *message, long code TSRMLS_DC)
 {
 	switch (x.reply_type) {
 		case AMQP_RESPONSE_NORMAL:

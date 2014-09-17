@@ -512,7 +512,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		char ** pstr = (char **) &str;
 		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
@@ -567,7 +567,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 		char ** pstr = (char **) &str;
 		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 		return;
 	}
@@ -879,7 +879,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 		char **pstr = (char **)&str;
 		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
@@ -946,7 +946,7 @@ PHP_METHOD(amqp_exchange_class, bind)
 		char ** pstr = (char **) &str;
 		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
@@ -1014,7 +1014,7 @@ PHP_METHOD(amqp_exchange_class, unbind)
 		char ** pstr = (char **) &str;
 		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
-		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
+		php_amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
 
 		return;
