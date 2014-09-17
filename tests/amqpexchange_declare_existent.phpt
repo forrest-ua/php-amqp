@@ -41,7 +41,7 @@ try {
 --EXPECTF--
 Channel id: 1
 Exchange declared: true
-AMQPExchangeException: Server channel error: 406, message: PRECONDITION_FAILED - cannot redeclare exchange 'exchange-%d.%d' in vhost '/' with different type, durable, internal or autodelete value
+AMQPExchangeException: Server channel error: 406, message: PRECONDITION_FAILED - cannot redeclare exchange 'exchange-%f' in vhost '/' with different type, durable, internal or autodelete value
 Channel connected: false
 Connection connected: true
 AMQPChannelException: Could not create exchange. No channel available.

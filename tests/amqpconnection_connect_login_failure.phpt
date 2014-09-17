@@ -9,8 +9,8 @@ AMQPConnection connect login failure
 //ini_set('amqp.write_timeout', 60);
 
 $cnn = new AMQPConnection();
-$cnn->setLogin('nonexistent-login-'.time());
-$cnn->setPassword('nonexistent-password-'.time());
+$cnn->setLogin('nonexistent-login-'.microtime(true));
+$cnn->setPassword('nonexistent-password-'.microtime(true));
 
 //var_dump($cnn);
 

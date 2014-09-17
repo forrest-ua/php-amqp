@@ -11,13 +11,13 @@ $ch = new AMQPChannel($cnn);
 
 // Declare a new exchange
 $ex = new AMQPExchange($ch);
-$ex->setName('exchange-' . time());
+$ex->setName('exchange-' . microtime(true));
 $ex->setType(AMQP_EX_TYPE_FANOUT);
 $ex->declareExchange();
 
 // Create a new queue
 $q = new AMQPQueue($ch);
-$q->setName('queue-' . time());
+$q->setName('queue-' . microtime(true));
 $q->declareQueue();
 
 // Bind it on the exchange to routing.key
@@ -66,7 +66,7 @@ object(AMQPEnvelope)#5 (18) {
   ["delivery_mode"]=>
   int(0)
   ["exchange_name"]=>
-  string(19) "exchange-%d"
+  string(%d) "exchange-%f"
   ["is_redelivery"]=>
   int(0)
   ["content_encoding"]=>
@@ -108,7 +108,7 @@ object(AMQPEnvelope)#5 (18) {
   ["delivery_mode"]=>
   int(2)
   ["exchange_name"]=>
-  string(19) "exchange-%d"
+  string(%d) "exchange-%f"
   ["is_redelivery"]=>
   int(0)
   ["content_encoding"]=>

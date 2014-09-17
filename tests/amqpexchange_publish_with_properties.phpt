@@ -10,7 +10,7 @@ $cnn->connect();
 $ch = new AMQPChannel($cnn);
 
 $ex = new AMQPExchange($ch);
-$ex->setName("exchange-" . time());
+$ex->setName("exchange-" . microtime(true));
 $ex->setType(AMQP_EX_TYPE_FANOUT);
 $ex->declareExchange();
 
@@ -80,7 +80,7 @@ object(AMQPEnvelope)#5 (18) {
   ["delivery_mode"]=>
   int(1)
   ["exchange_name"]=>
-  string(19) "exchange-%d"
+  string(%d) "exchange-%f"
   ["is_redelivery"]=>
   int(0)
   ["content_encoding"]=>
