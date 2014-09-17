@@ -510,7 +510,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -565,7 +565,7 @@ PHP_METHOD(amqp_exchange_class, delete)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -877,7 +877,7 @@ PHP_METHOD(amqp_exchange_class, publish)
 
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_queue_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -944,7 +944,7 @@ PHP_METHOD(amqp_exchange_class, bind)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -1012,7 +1012,7 @@ PHP_METHOD(amqp_exchange_class, unbind)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_exchange_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);

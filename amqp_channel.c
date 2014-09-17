@@ -120,7 +120,7 @@ void php_amqp_close_channel(amqp_channel_object *channel TSRMLS_DC)
 		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 			char str[256];
 			char ** pstr = (char **) &str;
-			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+			php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -235,7 +235,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -263,7 +263,7 @@ PHP_METHOD(amqp_channel_class, __construct)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char ** pstr = (char **) &str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -355,7 +355,7 @@ PHP_METHOD(amqp_channel_class, setPrefetchCount)
 		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 			char str[256];
 			char ** pstr = (char **) &str;
-			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+			php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -426,7 +426,7 @@ PHP_METHOD(amqp_channel_class, setPrefetchSize)
 		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 			char str[256];
 			char ** pstr = (char **) &str;
-			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+			php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -505,7 +505,7 @@ PHP_METHOD(amqp_channel_class, qos)
 		if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 			char str[256];
 			char ** pstr = (char **) &str;
-			amqp_error(res, pstr, connection, channel TSRMLS_CC);
+			php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 			amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 			php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -552,7 +552,7 @@ PHP_METHOD(amqp_channel_class, startTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -598,7 +598,7 @@ PHP_METHOD(amqp_channel_class, commitTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
@@ -643,7 +643,7 @@ PHP_METHOD(amqp_channel_class, rollbackTransaction)
 	if (res.reply_type != AMQP_RESPONSE_NORMAL) {
 		char str[256];
 		char **pstr = (char **)&str;
-		amqp_error(res, pstr, connection, channel TSRMLS_CC);
+		php_amqp_error(res, pstr, connection, channel TSRMLS_CC);
 
 		amqp_zend_throw_exception(res, amqp_channel_exception_class_entry, *pstr, 0 TSRMLS_CC);
 		php_amqp_maybe_release_buffers_on_channel(connection, channel);
