@@ -317,7 +317,6 @@ typedef struct _amqp_channel_object {
 typedef struct _amqp_connection_resource {
 	zend_bool is_connected;
 	int resource_id;
-	uint in_use;
 	amqp_channel_t used_slots;
     amqp_channel_object **slots;
 	char *resource_key;
