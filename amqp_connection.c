@@ -145,10 +145,7 @@ HashTable *amqp_connection_object_get_debug_info(zval *object, int *is_temp TSRM
 }
 #endif
 
-/* 	php_amqp_disconnect
-	handles disconnecting from amqp
-	called by disconnect(), reconnect(), and d_tor
- */
+
 static void php_amqp_prepare_for_disconnect(amqp_connection_object *connection TSRMLS_DC)
 {
 	amqp_channel_object *channel;
@@ -159,6 +156,8 @@ static void php_amqp_prepare_for_disconnect(amqp_connection_object *connection T
 	if (!resource) {
 		return;
 	}
+
+	resource->resource_id = 0;
 
 	assert(resource->slots != NULL);
 
@@ -249,6 +248,7 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 			efree(key);
 
 			if (Z_TYPE_P(le) != le_amqp_connection_resource_persistent) {
+				/* hash conflict, given name associate with non-amqp persistent connection resource */
 				return 0;
 			}
 
@@ -265,6 +265,18 @@ int php_amqp_connect(amqp_connection_object *connection, int persistent TSRMLS_D
 			}
 
 			connection->connection_resource->resource_id = ZEND_REGISTER_RESOURCE(NULL, connection->connection_resource, persistent ? le_amqp_connection_resource_persistent : le_amqp_connection_resource);
+
+			/* Set desired timeouts */
+			if (php_amqp_set_resource_read_timeout(connection->connection_resource, connection->read_timeout TSRMLS_CC) == 0
+			    || php_amqp_set_resource_write_timeout(connection->connection_resource, connection->write_timeout TSRMLS_CC) == 0) {
+
+			   php_amqp_disconnect_force(connection TSRMLS_CC);
+
+			   connection->connection_resource = NULL;
+			   return 0;
+			}
+
+
 			/* Set connection status to connected */
 			connection->is_connected = '\1';
 			connection->is_persistent = persistent;
@@ -1101,6 +1113,8 @@ PHP_METHOD(amqp_connection_class, setTimeout)
 
 	if (connection->is_connected == '\1') {
 		if (php_amqp_set_resource_read_timeout(connection->connection_resource, connection->read_timeout TSRMLS_CC) == 0) {
+
+			php_amqp_disconnect_force(connection TSRMLS_CC);
 			RETURN_FALSE;
 		}
 	}
@@ -1156,6 +1170,8 @@ PHP_METHOD(amqp_connection_class, setReadTimeout)
 
 	if (connection->is_connected == '\1') {
 		if (php_amqp_set_resource_read_timeout(connection->connection_resource, connection->read_timeout TSRMLS_CC) == 0) {
+			php_amqp_disconnect_force(connection TSRMLS_CC);
+
 			RETURN_FALSE;
 		}
 	}
@@ -1211,6 +1227,8 @@ PHP_METHOD(amqp_connection_class, setWriteTimeout)
 
 	if (connection->is_connected == '\1') {
 		if (php_amqp_set_resource_write_timeout(connection->connection_resource, connection->write_timeout TSRMLS_CC) == 0) {
+
+			php_amqp_disconnect_force(connection TSRMLS_CC);
 			RETURN_FALSE;
 		}
 	}
