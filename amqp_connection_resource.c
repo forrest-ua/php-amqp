@@ -259,7 +259,7 @@ int php_amqp_connection_resource_unregister_channel(amqp_connection_resource *re
 
 	if (resource->slots[channel_id] != 0) {
 		resource->slots[channel_id] = 0;
-		resource->used_slots++;
+		resource->used_slots--;
 	}
 
 	return SUCCESS;
