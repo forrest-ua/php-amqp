@@ -88,6 +88,10 @@ HashTable *amqp_exchange_object_get_debug_info(zval *object, int *is_temp TSRMLS
 	ZVAL_LONG(value, IS_AUTODELETE(exchange->flags));
 	zend_hash_add(debug_info, "auto_delete", sizeof("auto_delete"), &value, sizeof(zval *), NULL);
 
+	MAKE_STD_ZVAL(value);
+	ZVAL_LONG(value, IS_INTERNAL(exchange->flags));
+	zend_hash_add(debug_info, "internal", sizeof("internal"), &value, sizeof(zval *), NULL);
+
 	Z_ADDREF_P(exchange->arguments);
 	zend_hash_add(debug_info, "arguments", sizeof("arguments"), &exchange->arguments, sizeof(&exchange->arguments), NULL);
 
@@ -492,6 +496,19 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 
 	arguments = convert_zval_to_arguments(exchange->arguments);
 	
+#if AMQP_VERSION_MAJOR == 0 && AMQP_VERSION_MINOR >= 5 && AMQP_VERSION_PATCH >= 2
+	amqp_exchange_declare(
+		connection->connection_resource->connection_state,
+		channel->channel_id,
+		amqp_cstring_bytes(exchange->name),
+		amqp_cstring_bytes(exchange->type),
+		IS_PASSIVE(exchange->flags),
+		IS_DURABLE(exchange->flags),
+		IS_AUTODELETE(exchange->flags),
+		IS_INTERNAL(exchange->flags),
+		*arguments
+	);
+#else
 	amqp_exchange_declare(
 		connection->connection_resource->connection_state,
 		channel->channel_id,
@@ -501,6 +518,7 @@ PHP_METHOD(amqp_exchange_class, declareExchange)
 		IS_DURABLE(exchange->flags),
 		*arguments
 	);
+#endif
 
 	amqp_rpc_reply_t res = amqp_get_rpc_reply(connection->connection_resource->connection_state);
 
