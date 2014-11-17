@@ -28,7 +28,7 @@ Object-oriented PHP bindings for the AMQP C library (https://github.com/alanxz/r
 
   Limitations:
 
-  - there may be only one persistent connection per unique credentials (login+password+host+port+vhost).
+  - there are may be only one persistent connection per unique credentials (login+password+host+port+vhost).
     If there are will be attempt to create another persistent connection with same credentials, exception will be thrown.
   - channels on persistent connection are not persistent: they are destroyed between requests.
 
